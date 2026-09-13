@@ -1,0 +1,13 @@
+# Revisión de Orden 05 — 13 de septiembre de 2026
+
+El commit `a3ad817` no pasaba `npm run test:api`: la ruta `../../src/backend/authAdmin.js` desde `supabase/tests/api/` apuntaba a `supabase/src/`, que no existe. Codex la corrigió a `../../../src/backend/authAdmin.js`. El siguiente intento falló con `Email logins are disabled`: `[auth.email] enable_signup = false` desactivaba el proveedor de correo. Codex cambió **solo** ese ajuste a `true`, mantuvo `[auth] enable_signup = false`, reinició Supabase local y ejecutó `npm run test:api` con resultado **PASS**. Pasaron también `npm test` (26), lint y build. Ambos arreglos están sin commit para que Antigravity los incorpore al siguiente cambio. No se ejecutó ningún push.
+
+## Cobertura y comportamiento pendientes
+
+- `disableManagedUser` cambia `profiles.status` y la prueba inicia sesión correctamente con Bob **después de desactivarlo**. Esto es compatible con denegar lectura/escritura mediante RLS/RPC con un token vigente, pero contradice el criterio del plan «uno desactivado no puede iniciar sesión». Decide y documenta si desactivar debe negar también Auth login; de ser así, implementa bloqueo administrativo de Auth además de RLS y prueba login denegado, token existente denegado y reactivación. No afirmes que Auth login está bloqueado hoy.
+- `createManagedUser` elimina la cuenta si falla la inserción de perfil, pero ignora un posible error de `deleteUser`; en ese caso podría dejar una cuenta Auth huérfana. Propaga el error de rollback y prueba ese fallo con un cliente simulado. `disableManagedUser`/`reactivateManagedUser` consideran éxito un `UPDATE` de cero filas: exigir retorno/`count` que confirme exactamente un perfil actualizado.
+- El test de restablecimiento verifica rechazo de la contraseña anterior y acceso con la nueva; **no** comprueba invalidación de tokens de sesión anteriores. Corregir el resumen/documentación y decidir una política de revocación de sesiones si se necesita.
+- La prueba de registro público acepta el mensaje `signup requires a valid password` como equivalente a «registro cerrado». Esa respuesta puede darse con registro abierto. Exigir el rechazo específico de signups deshabilitados, o un código inequívoco.
+- La limpieza de test imprime un aviso si `deleteUser` falla pero deja el test verde. Hacer fallar la prueba y documentar los UUID pendientes para limpieza manual sin imprimir contraseñas/tokens.
+
+Orden 05 validada **parcialmente por HTTP local**: alta, login, RLS para perfil desactivado, reactivación por RPC y cambio de contraseña funcionan. El cierre requiere resolver los comportamientos y pruebas anteriores. No tocar RLS ni pgTAP para estas correcciones.

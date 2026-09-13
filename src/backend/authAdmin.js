@@ -27,7 +27,7 @@ export async function createManagedUser(adminClient, email, password, displayNam
   const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
     email,
     password,
-    email_confirm: true // Se confirma automáticamente al ser administrado
+    email_confirm: true
   });
 
   if (authError) throw new Error(`Error al crear auth user: ${authError.message}`);
@@ -43,7 +43,10 @@ export async function createManagedUser(adminClient, email, password, displayNam
 
   // 3. Consistencia: si el perfil falla, borramos la cuenta huérfana
   if (profileError) {
-    await adminClient.auth.admin.deleteUser(userId);
+    const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
+    if (deleteError) {
+       throw new Error(`CRÍTICO: Falló la creación de perfil y también falló el rollback (cuenta huérfana). UUID: ${userId}. Error perfil: ${profileError.message}. Error rollback: ${deleteError.message}`);
+    }
     throw new Error(`Error al crear el perfil, usuario descartado de forma segura: ${profileError.message}`);
   }
 
@@ -51,23 +54,38 @@ export async function createManagedUser(adminClient, email, password, displayNam
 }
 
 /**
- * Desactiva un usuario administrado (bloqueando su uso de la API, aunque tenga token).
+ * Desactiva un usuario administrado (bloqueando su login en Auth y su uso de la API vía RLS).
  */
 export async function disableManagedUser(adminClient, userId) {
-  const { error } = await adminClient.from('profiles').update({ status: 'disabled' }).eq('user_id', userId);
-  if (error) throw new Error(`Error al desactivar usuario: ${error.message}`);
+  // 1. Bloqueo en Auth (ban de 100 años)
+  const { error: banError } = await adminClient.auth.admin.updateUserById(userId, { ban_duration: '876600h' });
+  if (banError) throw new Error(`Error al banear usuario en Auth: ${banError.message}`);
+  
+  // 2. Revocar tokens activos
+  await adminClient.auth.admin.signOut(userId, 'global');
+
+  // 3. Actualizar perfil
+  const { error, count } = await adminClient.from('profiles').update({ status: 'disabled' }, { count: 'exact' }).eq('user_id', userId);
+  if (error) throw new Error(`Error al desactivar perfil: ${error.message}`);
+  if (count === 0) throw new Error(`No se actualizó ningún perfil al desactivar (UUID: ${userId}).`);
 }
 
 /**
  * Reactiva un usuario previamente desactivado.
  */
 export async function reactivateManagedUser(adminClient, userId) {
-  const { error } = await adminClient.from('profiles').update({ status: 'active' }).eq('user_id', userId);
-  if (error) throw new Error(`Error al reactivar usuario: ${error.message}`);
+  // 1. Levantar el ban en Auth
+  const { error: unbanError } = await adminClient.auth.admin.updateUserById(userId, { ban_duration: 'none' });
+  if (unbanError) throw new Error(`Error al desbanear usuario en Auth: ${unbanError.message}`);
+
+  // 2. Actualizar perfil
+  const { error, count } = await adminClient.from('profiles').update({ status: 'active' }, { count: 'exact' }).eq('user_id', userId);
+  if (error) throw new Error(`Error al reactivar perfil: ${error.message}`);
+  if (count === 0) throw new Error(`No se actualizó ningún perfil al reactivar (UUID: ${userId}).`);
 }
 
 /**
- * Restablece la contraseña de un usuario de forma administrada.
+ * Restablece la contraseña de un usuario de forma administrada y revoca sesiones previas.
  */
 export async function resetManagedUserPassword(adminClient, userId, newPassword) {
   if (newPassword.length < 8) {
@@ -77,4 +95,8 @@ export async function resetManagedUserPassword(adminClient, userId, newPassword)
     password: newPassword
   });
   if (error) throw new Error(`Error reseteando contraseña: ${error.message}`);
+  
+  // Revocar sesiones globales activas al cambiar contraseña
+  const { error: signoutError } = await adminClient.auth.admin.signOut(userId, 'global');
+  if (signoutError) throw new Error(`Error revocando sesiones globales tras reset: ${signoutError.message}`);
 }
