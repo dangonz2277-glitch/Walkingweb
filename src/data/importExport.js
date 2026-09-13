@@ -1,8 +1,8 @@
-const MAIN = ['walkingpad_custom_products', 'repSession_Daniel', 'repHistory_Daniel'];
+const MAIN = ['walkingpad_local_products', 'repSession_Daniel', 'repHistory_Daniel'];
 // Backups may contain data from the retired module. Export it for archival only;
 // importing must never recreate that module's local data.
 const LEGACY_ARCHIVE = ['walkingpad_trackings', 'walkingpad_trackings_corrupted'];
-const KEYS = [...MAIN, ...MAIN.map(k => `${k}_corrupted`), ...LEGACY_ARCHIVE];
+const KEYS = [...MAIN, ...MAIN.map(k => `${k}_corrupted`), ...LEGACY_ARCHIVE, 'walkingpad_custom_products'];
 export function createBackup() {
   return JSON.stringify({ version: 1, timestamp: new Date().toISOString(), keys: Object.fromEntries(KEYS.map(k => [k, localStorage.getItem(k)])) }, null, 2);
 }
@@ -22,7 +22,7 @@ function parse(raw, key) {
   if (key === 'repSession_Daniel' ? !object(value) : !Array.isArray(value) || !value.every(object)) throw Error(`${key}: estructura inválida`);
   return value;
 }
-const identity = (key, item) => key === 'walkingpad_custom_products'
+const identity = (key, item) => key === 'walkingpad_local_products'
   ? (item.id != null ? `id:${item.id}` : `product:${String(item.model || '').toLowerCase()}|${String(item.name || '').toLowerCase()}|${String(item.cat || '').toLowerCase()}`)
   : `shift:${item.shiftId || item.id || JSON.stringify(item)}`;
 function legacyShift(item, index) {
@@ -39,6 +39,12 @@ export function importData(raw) {
   let backup;
   try { backup = JSON.parse(raw); } catch { throw Error('El archivo no es JSON válido.'); }
   if (!object(backup) || !object(backup.keys) || (backup.version != null && backup.version !== 1)) throw Error('Formato de respaldo inválido.');
+  
+  // Normalizar custom_products legacy a local_products
+  if (backup.keys['walkingpad_custom_products'] != null && backup.keys['walkingpad_local_products'] == null) {
+    backup.keys['walkingpad_local_products'] = backup.keys['walkingpad_custom_products'];
+  }
+
   const keys = backup.keys;
   const operations = [];
   let added = 0, conflicts = 0;

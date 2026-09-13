@@ -32,7 +32,7 @@ describe('interfaz React', () => {
     fireEvent.change(screen.getByLabelText('Modelo'), { target: { value: 'N1' } });
     fireEvent.change(screen.getByLabelText('Capacidad'), { target: { value: '100 kg' } });
     const original = Storage.prototype.setItem;
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function(key, value) { if (key === 'walkingpad_custom_products') throw Error('quota'); return original.call(this, key, value); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function(key, value) { if (key === 'walkingpad_local_products') throw Error('quota'); return original.call(this, key, value); });
     fireEvent.click(screen.getByText('Guardar producto'));
     expect(screen.getByLabelText('Nombre').value).toBe('Nuevo');
     expect(screen.getByRole('status').textContent).toMatch(/No se pudo guardar/);
@@ -46,9 +46,37 @@ describe('interfaz React', () => {
     fireEvent.change(screen.getByLabelText('URL 1'), { target: { value: 'https://example.com/producto' } });
     fireEvent.change(screen.getByLabelText('Precio 1'), { target: { value: '$100' } });
     fireEvent.click(screen.getByText('Guardar producto'));
-    const saved = JSON.parse(localStorage.getItem('walkingpad_custom_products'));
+    const saved = JSON.parse(localStorage.getItem('walkingpad_local_products'));
     expect(saved[0].links[0].price).toBe('$100');
     expect(screen.getByText('43 productos')).toBeTruthy();
+  });
+  it('permite editar un producto base, creando un override local, y revertirlo', () => {
+    render(<App initialData={initialData} />);
+    
+    // Editar el primer producto
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(first.name) }));
+    fireEvent.click(screen.getByText('Editar'));
+    
+    // Modificar capacidad
+    fireEvent.change(screen.getByLabelText('Capacidad'), { target: { value: '500 kg' } });
+    fireEvent.click(screen.getByText('Guardar producto'));
+    
+    // Comprobar visualmente que dice Local Override y tiene 500 kg
+    expect(screen.getByText(/Override Local/)).toBeTruthy();
+    expect(screen.getByText(/500 kg/)).toBeTruthy();
+    
+    // Comprobar storage
+    const saved = JSON.parse(localStorage.getItem('walkingpad_local_products'));
+    expect(saved.length).toBe(1);
+    expect(saved[0].isOverride).toBe(true);
+    
+    // Revertir
+    window.confirm = () => true;
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(first.name) })); // Expandir
+    fireEvent.click(screen.getByText('Revertir a base'));
+    
+    const savedAfterRevert = JSON.parse(localStorage.getItem('walkingpad_local_products'));
+    expect(savedAfterRevert.length).toBe(0);
   });
   it('no muestra el módulo retirado', () => {
     render(<App initialData={initialData} />);

@@ -26,7 +26,7 @@ describe('datos y respaldo', () => {
   });
   it('importa dos veces sin duplicar productos ni historiales sin id', () => {
     const data = backup({
-      walkingpad_custom_products: JSON.stringify([{ name: 'Nuevo', model: 'N1', cat: 'Hybrid' }]),
+      walkingpad_local_products: JSON.stringify([{ name: 'Nuevo', model: 'N1', cat: 'Hybrid' }]),
       repHistory_Daniel: JSON.stringify([{ date: 'ayer', calls: 2 }, { date: 'hoy', calls: 2 }]),
       repSession_Daniel: JSON.stringify({ calls: 1 }),
       walkingpad_trackings_corrupted: '{antiguo',
@@ -36,6 +36,14 @@ describe('datos y respaldo', () => {
     expect(JSON.parse(localStorage.getItem('repHistory_Daniel'))).toHaveLength(2);
     expect(localStorage.getItem('walkingpad_trackings_corrupted')).toBeNull();
   });
+  it('importa custom_products antiguo y lo migra a local_products', () => {
+    const data = backup({
+      walkingpad_custom_products: JSON.stringify([{ name: 'Viejo', model: 'V1', cat: 'Classic' }])
+    });
+    expect(importData(data).added).toBe(1);
+    const locals = JSON.parse(localStorage.getItem('walkingpad_local_products'));
+    expect(locals[0].model).toBe('V1');
+  });
   it('no sobrescribe una sesión existente y señala el conflicto', () => {
     localStorage.setItem('repSession_Daniel', JSON.stringify({ calls: 9, shiftId: 'mine' }));
     const result = importData(backup({ repSession_Daniel: JSON.stringify({ calls: 1, shiftId: 'theirs' }) }));
@@ -43,8 +51,8 @@ describe('datos y respaldo', () => {
     expect(loadRepState().calls).toBe(9);
   });
   it('rechaza estructura inválida antes de escribir', () => {
-    expect(() => importData(backup({ repHistory_Daniel: '{}', walkingpad_custom_products: '[]' }))).toThrow();
-    expect(localStorage.getItem('walkingpad_custom_products')).toBeNull();
+    expect(() => importData(backup({ repHistory_Daniel: '{}', walkingpad_local_products: '[]' }))).toThrow();
+    expect(localStorage.getItem('walkingpad_local_products')).toBeNull();
   });
   it('preserva almacenamiento inválido y no lo sobrescribe al importar', () => {
     localStorage.setItem('repHistory_Daniel', '{roto');
