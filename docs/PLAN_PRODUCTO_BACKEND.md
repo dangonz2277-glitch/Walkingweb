@@ -39,9 +39,9 @@ La contraseña individual de ocho caracteres es una decisión de simplicidad con
 
 Crear un único repositorio Git en `WalkingWeb`, con rama principal protegida y trabajo por ramas/PR. Registrar los 42 productos y JSON fuente mediante hashes; guardar respaldo de los datos locales antes de migrar. Configurar CI para `npm test`, `npm run lint` y `npm run build`. No editar la antigua copia `react-app` ni el catálogo anterior. **Terminado cuando:** ambos agentes usan la misma raíz y cada cambio tiene diff, revisión y checks reproducibles. El primer commit local `f442b99` existe y `origin` está configurado; no hay push ni CI remoto ejecutado ni protección de `main`. Los hashes y respaldos deben verificarse; `supabase/.branches/_current_branch` quedó versionado por error y debe retirarse del índice.
 
-### 2. Cerrar el perímetro del sitio — bloqueante de publicación
+### 2. Cerrar el perímetro del sitio — bloqueante de publicación (Orden 06 finalizada)
 
-Elegir hosting que permita una puerta **del lado servidor o edge**. Implementar login general, logout, rotación de clave y sesión segura. Exigir la sesión en `/`, rutas internas, assets, JSON y APIs. Configurar secreto fuera de Git y fuera de cualquier variable `VITE_` pública; HTTPS, límites de intentos y respuesta genérica a fallos. Probar acceso directo a la URL de un JS/JSON sin sesión. **Terminado cuando:** una petición anónima no puede obtener el contenido protegido, aunque conozca la URL exacta.
+Se ha migrado la aplicación a Next.js (App Router) usando un middleware proxy del lado servidor. Este gateway exige la sesión en `/`, rutas internas, assets, JSON y APIs comprobando la presencia de una cookie HTTP-only (`site_session`). El secreto de acceso se lee de `process.env.SITE_PASSWORD`. El acceso a `/login` es libre. **Terminado cuando:** una petición anónima no puede obtener el contenido protegido. (Validado en Orden 06).
 
 ### 3. Fijar el dominio del reporte y los esquemas — EN PROGRESO (SQL/RLS probado localmente)
 
