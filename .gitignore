@@ -36,3 +36,4 @@ supabase/.temp
 .supabase
 
 supabase/.branches/
+.next

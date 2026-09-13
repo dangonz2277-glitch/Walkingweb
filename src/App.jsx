@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import Catalog from './components/Catalog.jsx';
 import Guide from './components/Guide.jsx';
