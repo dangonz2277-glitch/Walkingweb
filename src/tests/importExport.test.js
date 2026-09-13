@@ -1,7 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createBackup, importData } from '../data/importExport.js';
 import { loadRepState, finishRepDay, loadRepHistory } from '../data/reports.js';
-import { getBaseProducts, getIssues } from '../data/store.js';
+import { getBaseProducts, getIssues, initStore } from '../data/store.js';
+
+import categories from '../../data/categories.json';
+import products from '../../data/products.json';
+import sourceIssues from '../../data/issues_complete.json';
+import guide from '../../data/guia.json';
+import generalIssues from '../../data/general_issues.json';
+
+const initialData = { categories, products, sourceIssues, guide, generalIssues };
+initStore(initialData);
+
 const backup = keys => JSON.stringify({ version: 1, keys });
 describe('datos y respaldo', () => {
   beforeEach(() => localStorage.clear());

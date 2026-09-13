@@ -1,12 +1,21 @@
-import categories from '../catalog-data/categories.json';
-import products from '../catalog-data/products.json';
-import sourceIssues from '../catalog-data/issues_complete.json';
-import guide from '../catalog-data/guia.json';
-import generalIssues from '../catalog-data/general_issues.json';
 import { buildIssues } from './issues.js';
 import { loadArray, saveArray } from './storage.js';
 
-const issues = buildIssues(sourceIssues);
+let categories = [];
+let products = [];
+let guide = {};
+let generalIssues = [];
+let issues = {};
+
+export const initStore = (data) => {
+  if (!data) return;
+  if (data.categories) categories = data.categories;
+  if (data.products) products = data.products;
+  if (data.guide) guide = data.guide;
+  if (data.generalIssues) generalIssues = data.generalIssues;
+  if (data.sourceIssues) issues = buildIssues(data.sourceIssues);
+};
+
 export const getCategories = () => categories;
 export const getGuide = () => guide;
 export const getGeneralIssues = () => generalIssues;

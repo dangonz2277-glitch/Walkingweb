@@ -10,7 +10,8 @@
     "lint": "oxlint -A react/only-export-components",
     "test": "vitest run",
     "test:concurrency": "node supabase/tests/database/concurrent_test.js",
-    "test:api": "node supabase/tests/api/api_test.js"
+    "test:api": "node supabase/tests/api/api_test.js",
+    "test:gateway": "node tests/gateway_test.js"
   },
   "dependencies": {
     "next": "^16.3.5",
