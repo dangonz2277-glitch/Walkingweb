@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { getAllProducts, getCategories, getIssues, getGeneralIssues, saveLocalProduct, deleteLocalProduct } from '../data/store.js';
 
 const fields = [
@@ -10,16 +10,17 @@ const fields = [
 const emptyForm = { cat: 'Vertical Fold', name: '', model: '', capacity: '', links: [], notes: '' };
 
 export default function Catalog({ notify }) {
-  const [products, setProducts] = useState([]);
+  // Inicializamos directamente el estado para evitar el set-state-in-effect warning
+  // typeof window asegura que en un hipotético SSR Next.js no rompa, 
+  // aunque este componente es explícitamente cliente y usa localStorage
+  const [products, setProducts] = useState(() => {
+    return typeof window !== 'undefined' ? getAllProducts() : [];
+  });
   const [query, setQuery] = useState(''); 
   const [category, setCategory] = useState('All');
   const [expanded, setExpanded] = useState(null); 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptyForm);
-
-  useEffect(() => {
-    setProducts(getAllProducts());
-  }, []);
 
   const filtered = products.filter(p => 
     (category === 'All' || p.cat === category) && 
@@ -37,9 +38,9 @@ export default function Catalog({ notify }) {
     setEditing(true);
   }
 
-  function handleRevert(model) {
+  function handleRevert(product) {
     if (confirm('¿Seguro que deseas revertir este modelo base a su estado original?')) {
-      if (deleteLocalProduct(model)) {
+      if (deleteLocalProduct(product)) {
         setProducts(getAllProducts());
         notify('Producto revertido a base.');
       } else {
@@ -48,9 +49,9 @@ export default function Catalog({ notify }) {
     }
   }
 
-  function handleDelete(model) {
+  function handleDelete(product) {
     if (confirm('¿Seguro que deseas eliminar este producto local?')) {
-      if (deleteLocalProduct(model)) {
+      if (deleteLocalProduct(product)) {
         setProducts(getAllProducts());
         notify('Producto eliminado.');
       } else {
@@ -112,8 +113,8 @@ export default function Catalog({ notify }) {
               <div className="detail">
                 <div className="action-row">
                   <button onClick={() => startEdit(p)}>Editar</button>
-                  {p.isOverride && <button onClick={() => handleRevert(p.model)}>Revertir a base</button>}
-                  {p.isCustom && !p.isOverride && <button onClick={() => handleDelete(p.model)}>Eliminar</button>}
+                  {p.isOverride && <button onClick={() => handleRevert(p)}>Revertir a base</button>}
+                  {p.isCustom && !p.isOverride && <button onClick={() => handleDelete(p)}>Eliminar</button>}
                 </div>
                 <div className="spec-grid">
                   {fields.filter(([k]) => p[k] && p[k] !== '—').map(([k, label]) => (

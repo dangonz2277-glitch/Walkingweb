@@ -1,4 +1,8 @@
-# Catálogo WalkingPad (React)
+# WalkingWeb — Catálogo WalkingPad (Next.js)
+
+La aplicación actual usa Next.js y Supabase local para el gateway; los datos del catálogo siguen en JSON y las ediciones de producto aún se guardan en el navegador. Consulta [la guía de vista local](docs/LOCAL_DEV.md) para preparar `.env.local`, iniciar Supabase con Docker y abrir `http://localhost:3000`. Mi Reporte todavía no está conectado a los perfiles ni a PostgreSQL.
+
+Los apartados históricos de este README describen etapas anteriores de React/Vite y no deben tomarse como estado de la implementación actual. El plan vigente está en [docs/PLAN_PRODUCTO_BACKEND.md](docs/PLAN_PRODUCTO_BACKEND.md).
 
 El plan rector del backend, con prioridades y criterios de salida, está en [docs/PLAN_PRODUCTO_BACKEND.md](docs/PLAN_PRODUCTO_BACKEND.md). La contraseña general y los perfiles individuales de Mi Reporte están acordados; la elección de hosting y proveedor de datos sigue pendiente.
 
