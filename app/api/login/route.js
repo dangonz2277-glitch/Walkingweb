@@ -21,9 +21,7 @@ export async function POST(request) {
   if (crypto.timingSafeEqual(inputHash, expectedHash)) {
     const sessionValue = await signSession({ auth: true }, sessionSecret);
 
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    const response = NextResponse.redirect(url, 303);
+    const response = NextResponse.redirect(new URL('/', request.url), 303);
     
     // Configurar cookie segura (20 días de expiración)
     response.cookies.set('site_session', sessionValue, {
@@ -36,8 +34,5 @@ export async function POST(request) {
     return response;
   }
 
-  const url = request.nextUrl.clone();
-  url.pathname = '/login';
-  url.searchParams.set('error', '1');
-  return NextResponse.redirect(url, 303);
+  return NextResponse.redirect(new URL('/login?error=1', request.url), 303);
 }
