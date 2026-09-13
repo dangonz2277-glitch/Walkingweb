@@ -37,7 +37,7 @@ La contraseña individual de ocho caracteres es una decisión de simplicidad con
 
 ### 1. Congelar y controlar la base existente — EN PROGRESO
 
-Crear un único repositorio Git en `WalkingWeb`, con rama principal protegida y trabajo por ramas/PR. Registrar los 42 productos y JSON fuente mediante hashes; guardar respaldo de los datos locales antes de migrar. Configurar CI para `npm test`, `npm run lint` y `npm run build`. No editar la antigua copia `react-app` ni el catálogo anterior. **Terminado cuando:** ambos agentes usan la misma raíz y cada cambio tiene diff, revisión y checks reproducibles. Git local y workflow existen, pero aún no hay primer commit, CI remoto ejecutado ni protección de `main`; los hashes y respaldos deben verificarse.
+Crear un único repositorio Git en `WalkingWeb`, con rama principal protegida y trabajo por ramas/PR. Registrar los 42 productos y JSON fuente mediante hashes; guardar respaldo de los datos locales antes de migrar. Configurar CI para `npm test`, `npm run lint` y `npm run build`. No editar la antigua copia `react-app` ni el catálogo anterior. **Terminado cuando:** ambos agentes usan la misma raíz y cada cambio tiene diff, revisión y checks reproducibles. El primer commit local `f442b99` existe y `origin` está configurado; no hay push ni CI remoto ejecutado ni protección de `main`. Los hashes y respaldos deben verificarse; `supabase/.branches/_current_branch` quedó versionado por error y debe retirarse del índice.
 
 ### 2. Cerrar el perímetro del sitio — bloqueante de publicación
 
