@@ -1,0 +1,13 @@
+# Revisión de `7ee9478`: rate limit en PostgreSQL
+
+**Orden 06 abierta; no publicar ni hacer push.** Con Supabase local disponible pasaron `npm test` (26/26), `npm run lint`, `npm run build` y `npm run test:gateway`. La carrera de seis solicitudes muestra que el `UPSERT` serializa contadores para una misma clave. No demuestra que la clave sea confiable ni que la función sea privada.
+
+Hallazgos bloqueantes:
+
+1. `public.check_rate_limit(text,integer,interval)` es `SECURITY DEFINER` y no revoca el `EXECUTE` predeterminado de `PUBLIC`. Consulta de permisos en PostgreSQL local: `anon_execute=true`, `authenticated_execute=true`. Un cliente puede llamar la RPC directamente con cualquier `client_ip`, `max_attempts` e intervalo, manipulando contadores o bloqueando usuarios. El mismo chequeo dio `anon_select=true` para `public.rate_limits` (RLS puede ocultar filas, pero el grant debe eliminarse). Revocar todos los grants de tabla para `anon` y `authenticated`; revocar `EXECUTE` de función a `PUBLIC`, `anon` y `authenticated`; otorgarlo exclusivamente al rol de servicio que usa el servidor. Fijar `search_path` seguro y validar parámetros. Añadir pgTAP y prueba HTTP anónima que prueben denegación de RPC.
+2. `app/api/login/route.js` contiene una `SUPABASE_SERVICE_ROLE_KEY` de respaldo versionada. Aunque sea la clave de un entorno local, el servidor de producción debe fallar cerrado si falta su variable de entorno. Eliminar el fallback y cargar la URL del servidor desde una variable no pública. Evitar copiar claves de servicio en pruebas o documentación.
+3. `request.ip || x-real-ip || x-forwarded-for` sigue aceptando cabeceras aportadas por el cliente cuando `request.ip` no está definido. La suite simula precisamente el cambio de `x-forwarded-for` y lo aprueba como IP distinta; no prueba resistencia al spoofing. Definir y comprobar qué cabecera sobrescribe o sella realmente el proxy de despliegue, y rechazar configuraciones sin identidad confiable o documentar una clave compartida alternativa.
+4. El control actual cuenta todos los intentos, incluidos los acertados, y limita a 5 por **3 segundos**; el plan exige 5 por minuto. El usuario legítimo puede recibir 429 tras intentos ajenos. Ajustar el contrato de conteo y la ventana, probar concurrencia, expiración y el comportamiento de contraseña correcta tras agotarla.
+5. `rate_limits` no tiene limpieza activa de filas vencidas. Agregar retención/limpieza controlada para evitar crecimiento indefinido.
+
+La prueba de navegador y el preview HTTPS siguen pendientes. No se aplicaron migraciones ni se modificaron datos en esta revisión; las consultas de permisos fueron de lectura.

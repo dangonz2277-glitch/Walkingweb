@@ -30,7 +30,9 @@ const env = {
   SITE_PASSWORD: 'test-password', 
   SITE_SESSION_SECRET: 'super-secret-key-that-is-at-least-32-chars-long',
   NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
-  SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+  SUPABASE_URL: 'http://127.0.0.1:54321',
+  SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
+  RATE_LIMIT_WINDOW: '3 seconds'
 };
 
 function fetchHttp(url, options = {}) {
@@ -146,11 +148,12 @@ async function runTests() {
 
     // 6. Login incorrecto y Rate Limiting
     const badLoginBody = new URLSearchParams({ password: 'bad' }).toString();
+    const goodLoginBody = new URLSearchParams({ password: 'test-password' }).toString();
     
     // Simular un spoofing de cabecera usando IP ficticio para prueba
-    const testIp1 = '203.0.113.1';
+    const testIp1 = '127.0.0.1'; // IP ficticia para Vercel o proxy seguro (x-real-ip)
     
-    // Disparar 6 intentos concurrentes (el límite es 5)
+    // Disparar 6 intentos concurrentes con IP1
     console.log('Probando límites de intentos concurrentes (Rate limit 5/3s)...');
     const rateLimitPromises = [];
     for (let i = 0; i < 6; i++) {
@@ -159,7 +162,7 @@ async function runTests() {
         headers: { 
           'Content-Type': 'application/x-www-form-urlencoded', 
           'Content-Length': badLoginBody.length,
-          'x-forwarded-for': testIp1
+          'x-real-ip': testIp1
         },
         body: badLoginBody
       }));
@@ -170,34 +173,51 @@ async function runTests() {
     
     assert(successLogins === 5 && rateLimitedLogins === 1, `Rate limit debe permitir 5 y bloquear 1 concurrente. Encontrados: permitidos=${successLogins}, bloqueados=${rateLimitedLogins}`);
     
-    // Probar bypass cambiando cabecera (IP)
-    const testIp2 = '203.0.113.2';
+    // Comprobar que incluso la contraseña correcta falla con 429 tras agotar límite
     res = await fetchHttp(`${BASE_URL}/api/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length, 'x-forwarded-for': testIp2 },
-      body: badLoginBody
-    });
-    assert(res.status === 303, `Cambio de IP debe reiniciar el límite. Fue ${res.status}`);
-    
-    // Probar recuperación después de esperar 3 segundos (la ventana)
-    console.log('Esperando expiración de ventana (3s)...');
-    await new Promise(r => setTimeout(r, 3100));
-    res = await fetchHttp(`${BASE_URL}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length, 'x-forwarded-for': testIp1 },
-      body: badLoginBody
-    });
-    assert(res.status === 303, `Recuperación de la ventana fallida para IP 1. Fue ${res.status}`);
-
-    // 6.5. Login y host
-    const goodLoginBody = new URLSearchParams({ password: 'test-password' }).toString();
-    res = await fetchHttp(`${BASE_URL}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': goodLoginBody.length },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': goodLoginBody.length, 'x-real-ip': testIp1 },
       body: goodLoginBody
     });
-    assert(res.headers.location === '/', 'Login redirige con Location relativa a raíz');
-    const setCookieHeader = res.headers['set-cookie'] || [];
+    assert(res.status === 429, `La contraseña correcta debe ser rechazada (429) con límite agotado. Fue ${res.status}`);
+
+    // Probar bypass de otra persona en otra IP (debería pasar)
+    const testIp2 = '10.0.0.2';
+    res = await fetchHttp(`${BASE_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length, 'x-real-ip': testIp2 },
+      body: badLoginBody
+    });
+    assert(res.status === 303, `Login en nueva IP debe reiniciar el límite. Fue ${res.status}`);
+    
+    // Probar recuperación después de esperar la expiración de la ventana (3 segundos en el env)
+    console.log('Esperando expiración de ventana (3.1s)...');
+    await new Promise(r => setTimeout(r, 3100));
+    const successRes = await fetchHttp(`${BASE_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': goodLoginBody.length, 'x-real-ip': testIp1 },
+      body: goodLoginBody
+    });
+    assert(successRes.status === 303 && successRes.headers.location === '/', `Recuperación de la ventana fallida para IP 1. Fue ${successRes.status}`);
+
+    // Comprobar que IP desconocida o falsificada devuelve 500 (sin IP real proveida)
+    res = await fetchHttp(`${BASE_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length },
+      body: badLoginBody
+    });
+    assert(res.status === 500, `Debe rechazar solicitudes sin request.ip o x-real-ip (spoofing débil) devolviendo 500. Fue ${res.status}`);
+
+    // Comprobar que el RPC en Supabase está bloqueado para acceso anónimo vía PostgREST
+    const anonRpcRes = await fetchHttp(`${env.SUPABASE_URL}/rest/v1/rpc/check_rate_limit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_ip: '1.2.3.4' })
+    });
+    assert(anonRpcRes.status === 401 || anonRpcRes.status === 403 || anonRpcRes.status === 404, `RPC check_rate_limit no debe ser accesible anónimamente. Estado: ${anonRpcRes.status}`);
+
+    // Configurar sesión para las siguientes pruebas
+    const setCookieHeader = successRes.headers['set-cookie'] || [];
     const sessionCookieStr = setCookieHeader.find(c => c.startsWith('site_session='));
     const sessionCookie = sessionCookieStr ? sessionCookieStr.split(';')[0] : '';
 

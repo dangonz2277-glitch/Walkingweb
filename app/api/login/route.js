@@ -1,38 +1,61 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { signSession } from '../../../src/lib/session';
-
 import { createClient } from '@supabase/supabase-js';
 
 async function rateLimit(ip) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
-  // Use default local service key if none provided for test environments
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    // Fail closed si no hay credenciales (no se permiten logins sin rate limit)
+    throw new Error('Missing Supabase credentials for rate limiting');
+  }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 
-  // Limit: 5 attempts per 3 seconds (very short window to allow tests to recover quickly)
+  const windowInterval = process.env.RATE_LIMIT_WINDOW || '1 minute';
   const { data, error } = await supabase.rpc('check_rate_limit', {
     client_ip: ip,
     max_attempts: 5,
-    window_interval: '3 seconds'
+    window_interval: windowInterval
   });
 
   if (error) {
     console.error('Rate limit error:', error);
-    // Fall closed on database error to protect against brute force if DB is down
-    return false;
+    return false; // Fall closed en caso de error
   }
   return data;
 }
 
+async function resetRateLimit(ip) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) return;
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  await supabase.rpc('reset_rate_limit', { client_ip: ip });
+}
+
 export async function POST(request) {
-  // Confiamos en el IP real que reporta Next.js o un header estándar para el gateway
-  const ip = request.ip || request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
+  // Identidad confiable: IP asegurada por Vercel (request.ip) o por el proxy configurado en la plataforma (x-real-ip)
+  const ip = request.ip || request.headers.get('x-real-ip');
   
-  if (!(await rateLimit(ip))) {
+  if (!ip || ip.trim() === '') {
+    return new NextResponse('Internal Server Error: Unreliable Client Identity', { status: 500 });
+  }
+  
+  let allowed;
+  try {
+    allowed = await rateLimit(ip);
+  } catch {
+    return new NextResponse('Internal Server Error: Missing Secrets', { status: 500 });
+  }
+
+  if (!allowed) {
     return new NextResponse('Too Many Requests', { status: 429 });
   }
 
@@ -64,6 +87,9 @@ export async function POST(request) {
       path: '/',
       maxAge: 60 * 60 * 24 * 20
     });
+    
+    // Limpiar intentos para que otros en la misma IP no sean bloqueados injustamente
+    await resetRateLimit(ip);
     
     return response;
   }
