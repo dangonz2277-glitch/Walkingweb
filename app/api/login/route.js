@@ -21,7 +21,10 @@ export async function POST(request) {
   if (crypto.timingSafeEqual(inputHash, expectedHash)) {
     const sessionValue = await signSession({ auth: true }, sessionSecret);
 
-    const response = NextResponse.redirect(new URL('/', request.url), 303);
+    const response = new NextResponse(null, {
+      status: 303,
+      headers: { Location: '/' }
+    });
     
     // Configurar cookie segura (20 días de expiración)
     response.cookies.set('site_session', sessionValue, {
@@ -34,5 +37,8 @@ export async function POST(request) {
     return response;
   }
 
-  return NextResponse.redirect(new URL('/login?error=1', request.url), 303);
+  return new NextResponse(null, {
+    status: 303,
+    headers: { Location: '/login?error=1' }
+  });
 }

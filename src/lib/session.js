@@ -48,7 +48,7 @@ export async function verifySession(cookieValue, secretStr) {
     if (typeof payload.exp !== 'number' || payload.exp < Date.now()) return null;
 
     return payload;
-  } catch (e) {
+  } catch {
     // Si falla el atob (InvalidCharacterError), o el JSON.parse, o cualquier manipulación de bytes
     return null;
   }

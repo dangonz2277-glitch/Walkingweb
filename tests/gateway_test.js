@@ -30,8 +30,10 @@ async function waitServerReady(url, maxRetries = 20) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const res = await fetchHttp(url);
-      if (res.status === 200 || res.status === 307) return true;
-    } catch (e) {}
+      if (res.status === 200 || res.status === 307 || res.status === 500) return true;
+    } catch {
+      // Ignorar errores de red temporales durante inicio
+    }
     await new Promise(r => setTimeout(r, 500));
   }
   throw new Error('El servidor no respondió a tiempo.');
@@ -67,13 +69,13 @@ async function runTests() {
 
     // 1. Acceso anónimo a la raíz
     let res = await fetchHttp(`${BASE_URL}/`);
-    assert(res.status === 307 && res.headers.location.includes('/login'), `Acceso anónimo a raíz debería ser 307 a /login, pero fue ${res.status}`);
+    assert(res.status === 307 && res.headers.location?.includes('/login'), `Acceso anónimo a raíz debería ser 307 a /login, pero fue ${res.status}. Data: ${res.data.slice(0, 200)}`);
 
     // 2. Ruta profunda anónima
     res = await fetchHttp(`${BASE_URL}/alguna-ruta/secreta`);
     assert(res.status === 307, 'Ruta profunda no protegida.');
 
-    // 3. Cookie inventada y variaciones (rechazo sin 500)
+    // 3. Cookies inventadas/alteradas
     res = await fetchHttp(`${BASE_URL}/`, { headers: { 'Cookie': 'site_session=inventado.1234' } });
     assert(res.status === 307, `Cookie falsa básica debería ser 307, fue ${res.status}`);
     
@@ -83,7 +85,17 @@ async function runTests() {
     res = await fetchHttp(`${BASE_URL}/`, { headers: { 'Cookie': 'site_session=.' } });
     assert(res.status === 307, `Cookie solo con punto debería ser 307, fue ${res.status}`);
 
-    // 4. Asset público permitido y comprobación de HTML
+    // Payload maliciosamente alterado (firmas rotas)
+    const validJson = Buffer.from(JSON.stringify({ auth: true })).toString('base64url');
+    res = await fetchHttp(`${BASE_URL}/`, { headers: { 'Cookie': `site_session=${validJson}.badsignature0000000000000000000000000000000000000000000000000000` } });
+    assert(res.status === 307, `Firma falsa debería ser 307, fue ${res.status}`);
+
+    // Expirado
+    const expJson = Buffer.from(JSON.stringify({ auth: true, exp: 0 })).toString('base64url');
+    res = await fetchHttp(`${BASE_URL}/`, { headers: { 'Cookie': `site_session=${expJson}.badsignature0000000000000000000000000000000000000000000000000000` } });
+    assert(res.status === 307, `Cookie expirada debería ser 307, fue ${res.status}`);
+
+    // 4. Asset público permitido
     res = await fetchHttp(`${BASE_URL}/login`);
     assert(res.status === 200, 'Página de login debería ser 200');
     const html = res.data;
@@ -99,11 +111,22 @@ async function runTests() {
     try {
       const grepRes = execSync('grep -r "WP510B4" .next/static/chunks/ || true', { encoding: 'utf-8' });
       assert(grepRes.trim() === '', 'Los archivos JS en .next/static/chunks/ contienen datos del catálogo.');
+      const grepDataRes = execSync('grep -r "A11" .next/static/chunks/ || true', { encoding: 'utf-8' });
+      assert(grepDataRes.trim() === '', 'Los archivos JS en .next/static/chunks/ contienen partes secundarias del catálogo.');
     } catch(e) {
       console.error(e);
     }
 
-    // 6. Login correcto y host origin
+    // 6. Login incorrecto
+    const badLoginBody = new URLSearchParams({ password: 'bad' }).toString();
+    res = await fetchHttp(`${BASE_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length },
+      body: badLoginBody
+    });
+    assert(res.status === 303 && res.headers.location === '/login?error=1', `Login incorrecto debería redirigir a /login?error=1 con 303, fue ${res.status} hacia ${res.headers.location}`);
+
+    // 7. Login correcto y host origin
     const goodLoginBody = new URLSearchParams({ password: 'test-password' }).toString();
     res = await fetchHttp(`${BASE_URL}/api/login`, {
       method: 'POST',
@@ -111,8 +134,7 @@ async function runTests() {
       body: goodLoginBody
     });
     assert(res.status === 303, `Login correcto debería devolver 303, fue ${res.status}`);
-    // Next.js resuelve URLs relativas (new URL('/', request.url)) basándose en request.url
-    assert(res.headers.location.startsWith('http://127.0.0.1:3105/'), `Redirección debería mantener el host 127.0.0.1, fue ${res.headers.location}`);
+    assert(res.headers.location === '/', `Redirección relativa a raíz, fue ${res.headers.location}`);
     
     const setCookieHeader = res.headers['set-cookie'] || [];
     const sessionCookieStr = setCookieHeader.find(c => c.startsWith('site_session='));
@@ -120,18 +142,42 @@ async function runTests() {
     
     const sessionCookie = sessionCookieStr ? sessionCookieStr.split(';')[0] : '';
 
-    // 7. Acceso a datos internos con cookie
+    // 8. Acceso a datos internos con cookie
     res = await fetchHttp(`${BASE_URL}/`, { headers: { 'Cookie': sessionCookie } });
     assert(res.status === 200, `El acceso autorizado falló con código ${res.status}`);
-    assert(res.data.includes('42 productos'), 'El catálogo autorizado debería renderizar 42 productos.');
     
-    // 8. Logout
-    res = await fetchHttp(`${BASE_URL}/api/logout`, { method: 'POST' });
+    // Contar el número de tarjetas en el catálogo sin depender de hidratación React
+    const cardCount = [...res.data.matchAll(/class="[^"]*card[^"]*"/g)].length;
+    assert(cardCount >= 42, `El catálogo autorizado debería renderizar al menos 42 tarjetas, se encontraron ${cardCount}`);
+    
+    // 9. Logout
+    res = await fetchHttp(`${BASE_URL}/api/logout`, { 
+      method: 'POST',
+      headers: { 'Cookie': sessionCookie }
+    });
+    assert(res.status === 303 && res.headers.location === '/login', `Logout debería hacer redirect a /login, fue a ${res.headers.location}`);
     const logoutCookieStr = (res.headers['set-cookie'] || []).find(c => c.startsWith('site_session='));
     assert(logoutCookieStr && (logoutCookieStr.includes('Max-Age=0') || logoutCookieStr.includes('Expires=')), 'Logout revoca la cookie exitosamente en el navegador.');
+    
+    const revokedCookie = logoutCookieStr.split(';')[0];
+    res = await fetchHttp(`${BASE_URL}/`, { headers: { 'Cookie': revokedCookie } });
+    assert(res.status === 307, `Una cookie recién expirada por logout debe devolver 307, fue ${res.status}`);
 
-    // Probar falta de secreto de sesión (simulado cerrando y reabriendo sin él)
-    // Para simplificar, confiaremos en la revisión manual de código del 500, ya que reiniciar el servidor en la suite suma fragilidad.
+    // 10. Probar falta de secreto de sesión (simulado cerrando y reabriendo sin él)
+    console.log('Cerrando servidor principal para probar secreto ausente...');
+    serverProc.kill();
+    await new Promise(r => setTimeout(r, 1000));
+    
+    console.log(`Iniciando servidor Next.js sin secreto en puerto ${PORT}...`);
+    const badEnv = { ...process.env, SITE_PASSWORD: 'test-password', SITE_SESSION_SECRET: '' };
+    serverProc = spawn('./node_modules/.bin/next', ['start', '-H', '127.0.0.1', '-p', PORT.toString()], {
+      env: badEnv,
+      stdio: 'ignore'
+    });
+    await waitServerReady(`${BASE_URL}/login`);
+    
+    res = await fetchHttp(`${BASE_URL}/`, { headers: { 'Cookie': sessionCookie } });
+    assert(res.status === 500, `Sin SITE_SESSION_SECRET, el proxy debería devolver 500, pero devolvió ${res.status}`);
 
   } catch (err) {
     failures.push(`Excepción fatal en la suite: ${err.message}`);

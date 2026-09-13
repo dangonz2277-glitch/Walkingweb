@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(request) {
-  const response = NextResponse.redirect(new URL('/login', request.url), 303);
+export async function POST() {
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: { Location: '/login' }
+  });
   response.cookies.delete('site_session');
   return response;
 }
