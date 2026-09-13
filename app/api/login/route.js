@@ -41,11 +41,25 @@ async function resetRateLimit(ip) {
 }
 
 export async function POST(request) {
-  // Identidad confiable: IP asegurada por Vercel (request.ip) o por el proxy configurado en la plataforma (x-real-ip)
-  const ip = request.ip || request.headers.get('x-real-ip');
+  let ip = request.ip;
+  
+  if (!ip) {
+    if (process.env.IS_LOCAL_TEST === '1') {
+      // Usado exclusivamente por gateway_test.js para probar la lógica de limitación.
+      ip = request.headers.get('x-real-ip');
+    } else {
+      // Vercel u otros proxies seguros suelen sobrescribir x-forwarded-for con la IP real del cliente de forma inalterable.
+      // Sin embargo, si esto no está garantizado, NO podemos confiar en x-forwarded-for o x-real-ip provenientes del cliente.
+      const forwarded = request.headers.get('x-forwarded-for');
+      if (forwarded && process.env.TRUST_FORWARDED_IP === '1') {
+          ip = forwarded.split(',')[0].trim();
+      }
+    }
+  }
   
   if (!ip || ip.trim() === '') {
-    return new NextResponse('Internal Server Error: Unreliable Client Identity', { status: 500 });
+    // Si no se puede garantizar una identidad de red inalterable, fallamos en estado cerrado.
+    return new NextResponse('Internal Server Error: Unreliable Client Identity. Configure TRUST_FORWARDED_IP o use un runtime compatible con request.ip', { status: 500 });
   }
   
   let allowed;

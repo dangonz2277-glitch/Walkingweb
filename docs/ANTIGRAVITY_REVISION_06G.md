@@ -1,0 +1,9 @@
+# Revisión de `ac9ee3a`
+
+Estado: **la implementación SQL del limitador queda validada localmente; la identidad del cliente sigue bloqueando la publicación**. No se hizo push ni despliegue.
+
+Pasaron `npx supabase test db` (48 pgTAP), `npm test` (26/26), `npm run lint`, `npm run build` y `npm run test:gateway`. La consulta directa a PostgreSQL local confirmó `anon_check=false`, `anon_reset=false` y `anon_select=false`. La clave de servicio ya no tiene fallback en `app/api/login/route.js`. La ventana de producción usa un minuto por defecto; los tres segundos se configuran solo en tests.
+
+Bloqueo: la ruta usa `request.ip || request.headers.get('x-real-ip')`. En el entorno local probado, `request.ip` no está disponible y el cliente puede enviar diferentes valores de `x-real-ip`; la suite misma cambia esa cabecera y aprueba la solicitud bajo una clave nueva. Eliminar `x-forwarded-for` no resuelve el mismo problema en `x-real-ip`. No afirmar que `request.ip` está sellada criptográficamente sin una prueba del runtime de despliegue. En preview HTTPS, verificar qué valor entrega realmente el framework y si una cabecera arbitraria del cliente lo cambia. Aceptar únicamente una identidad establecida por una capa de proxy que elimine o sobrescriba cabeceras entrantes; probar desde fuera que cambiar cabeceras no reinicia el contador. Si no existe tal identidad, definir un mecanismo de limitación que no dependa de una IP elegida por el cliente.
+
+La RPC cuenta todas las solicitudes antes de verificar la contraseña. Por diseño, una contraseña correcta después de agotar los cinco intentos obtiene 429; la suite lo confirma. `reset_rate_limit` solo se ejecuta después de un login permitido y exitoso. Documentar este comportamiento con precisión. Queda pendiente verificar en navegador el flujo de cookie y en preview HTTPS el origen de la identidad y el atributo `Secure`.
