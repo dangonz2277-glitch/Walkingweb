@@ -1,0 +1,18 @@
+# Auditoría y ruta de publicación — 12 septiembre 2026
+
+**Actualización de alcance:** el plan vigente está en [PLAN_PRODUCTO_BACKEND.md](PLAN_PRODUCTO_BACKEND.md). «Tickets resueltos» se refiere al conteo diario de **Mi Reporte**. El módulo anterior de seguimiento fue retirado después de esta auditoría; los hallazgos sobre él describen el estado histórico, no el código actual.
+
+Estado de referencia: aplicación en `WalkingWeb`, Vite en `http://localhost:5173/`. Auditoría de lectura; no se modificó lógica de la app durante esta revisión. `npm test`: 14/14; `npm run lint`: limpio; `npm run build`: correcto, salida singlefile. Navegador real: 42 productos, detalle X218, búsqueda E01, guía, reporte y trackings visibles; sin errores de consola en esas vistas.
+
+## Hallazgos, por prioridad
+
+- **P0 — Separar contenido público e interno antes de publicar.** `src/data/store.js` importa guía, base completa de errores y ocho trackings semilla en el JavaScript del cliente. La interfaz no tiene autenticación (`src/App.jsx`). La guía incluye procedimientos de tickets, órdenes y canales de contacto; Trackings muestra números de ticket y notas. Una web pública expondría todo ese contenido aunque se ocultaran botones con CSS. Clasificar cada JSON y dejar en el bundle público solo contenido aprobado.
+- **P1 — Pérdida de identidad de turno no iniciado.** `loadRepState()` crea un `shiftId` nuevo cuando no hay clave, sin guardarlo. En la app abierta, entrar a Mi Reporte, salir y volver produjo dos IDs distintos. Guardar el borrador al crearlo y cubrir navegación/recarga con una prueba.
+- **P1 — Borrador no guardado puede perderse al navegar.** `Report.jsx` actualiza el estado React aunque `localStorage.setItem` falle. El aviso dice conservar la página abierta, pero las pestañas siguen activas; al salir se desmonta el componente. Mantener una copia recuperable en memoria de nivel app o bloquear navegación y ofrecer reintento.
+- **P1 — Detalle de producto demasiado estrecho.** La tarjeta expandida permanece en una sola columna de `.grid`; en pantalla de escritorio se convierte en una columna muy larga con espacio vacío al lado. Hacer que ocupe todas las columnas o usar un panel/modal de detalle.
+- **P1 — Falta control de versiones en la raíz canónica.** `WalkingWeb` no contiene `.git`. Para colaborar con Antigravity conviene acordar un único repositorio, rama principal, PRs y checks obligatorios; mantener las carpetas anteriores solo como referencia.
+- **P2 — Validación insuficiente del respaldo y formularios.** `importData()` acepta objetos arbitrarios en arrays; nombres/modelos/tickets/estado no se validan por esquema. Mi Reporte permite valores negativos desde datos importados o llamadas a la lógica. Añadir esquemas versionados, límites y validación de dominio; presentar un resumen previo de cambios/conflictos.
+- **P2 — La importación no es una transacción fuerte.** `importData()` intenta revertir escrituras si falla `localStorage`, pero la reversión también puede fallar por cuota/seguridad. Mantener el JSON fuente intacto y migrar a transacciones de base de datos al pasar a servidor.
+- **P2 — Búsqueda por error poco explicable.** Al buscar `E01` aparecen 32 productos porque se busca también en el texto completo de soluciones y campos heredados. Mostrar el motivo de coincidencia y distinguir código exacto de menciones en diagnóstico.
+- **P2 — Cobertura limitada.** Las 14 pruebas cubren base, algunos flujos y errores, pero faltan pruebas de navegación/recarga de reporte, guardado de estados, accesibilidad móvil, importación desde navegador y escenarios de concurrencia.
+

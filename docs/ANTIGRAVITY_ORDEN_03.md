@@ -1,0 +1,11 @@
+# Orden 03 para Antigravity — guardado atómico del conteo en PostgreSQL local
+
+La Orden 02 pasó 28/28 pruebas pgTAP en Supabase local. Trabaja solo en WalkingWeb y conserva la app React actual. No uses bases remotas ni implementes todavía login o cambios visuales.
+
+Implementa una operación SQL versionada para **establecer el total absoluto** de tickets de `(auth.uid(), work_date)` con `expected_revision` y resultado explícito de éxito/conflicto. Si el registro no existe, crea exactamente uno con revisión inicial definida; si existe y coincide la revisión esperada, actualiza conteo e incrementa `revision` una sola vez. Una revisión obsoleta, incluso tras un intento concurrente o reintento, no debe sobrescribir datos. Mantén `resolved_count` entre 0 y 9999. El cliente nunca suministra `user_id` como identidad confiable.
+
+Impide que un usuario autenticado eluda la operación con `INSERT` o `UPDATE` directo a `daily_reports`: ajusta grants y la interfaz de lectura/escritura de forma coherente. Usa privilegios mínimos, `search_path` fijo y pruebas de que anónimo, otra cuenta y un perfil desactivado no pueden invocar ni alterar totales ajenos. Si la función necesita privilegios elevados, documenta y prueba por qué, limitando su alcance y sin exponer una función `SECURITY DEFINER` sin controles explícitos.
+
+Añade pruebas pgTAP y una prueba de **dos sesiones PostgreSQL reales simultáneas** con la misma revisión, además de creación concurrente, reintento y lecturas posteriores. Una prueba secuencial de dos llamadas no demuestra carrera. Define la semántica de reintento: un `set` con revisión ya consumida debe devolver conflicto o reconocer inequívocamente la misma operación, pero nunca incrementar de nuevo ni perder el valor confirmado. Prueba que solo una escritura concurrente gana y que la otra recibe conflicto. No reclames idempotencia exacta si no existe clave de operación persistida.
+
+Mantén el contrato de `src/data/reportRepository.js` sin fingir éxitos desde sus stubs: si lo tocas, las operaciones no implementadas deben fallar explícitamente. Documenta el resultado y el caso de conflicto para la futura UI. Ejecuta `supabase db reset --local`, `supabase test db`, la prueba concurrente, `npm test`, lint y build; entrega comandos y salida. No conectes React ni hagas despliegue o push en esta orden.

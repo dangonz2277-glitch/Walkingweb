@@ -1,0 +1,57 @@
+[
+  {
+    "code": "SAFE",
+    "name": "Display shows SAFE",
+    "fix": "Safety lock not inserted or fallen off. Plug safety lock into socket on armrest. Check lock for damage or rust. Check mounting bracket. Inspect safety lock wire on left side of handrail knob assembly."
+  },
+  {
+    "code": "FOLD",
+    "name": "Display shows FOLD",
+    "fix": "Column is folded or spring pin not ejected. Erect and lock column. Check magnet and reed switch. Check upper-lower communication wires. Check safety lock wire."
+  },
+  {
+    "code": "LOC",
+    "name": "Display shows LOC",
+    "fix": "Child lock is active. Connect to app to start workout. Lock re-activates automatically after session ends and app disconnects."
+  },
+  {
+    "code": "NO-C",
+    "name": "Remote shows NO-C",
+    "fix": "Remote is not paired. Power off and restart machine. Near the machine head, press and hold mode button 10s until beep. Replace battery (CR2032) if needed."
+  },
+  {
+    "code": "Wrench ⚙",
+    "name": "Maintenance / wrench icon",
+    "fix": "Maintenance reminder. Check running belt tension. Try silicone oil. If no E-code: observe, it may disappear. Switch to A mode: if E08 appears, replace sensor or upper control."
+  },
+  {
+    "code": "Belt slip",
+    "name": "Running belt slipping",
+    "fix": "Rotate adjusting screws clockwise 1/3 turn on both sides. Test at low speed. Repeat if needed. If belt still slips: open machine head and check wedge belt."
+  },
+  {
+    "code": "Belt offset",
+    "name": "Belt off-center",
+    "fix": "Use L-shaped wrench: rotate rear end clockwise 1/3 turn on the rubbing side. Test at low speed. Do NOT use APP calibration if belt is already rubbing frame."
+  },
+  {
+    "code": "No power",
+    "name": "Machine won't turn on",
+    "fix": "1. Check socket is powered. 2. Check power switch light. 3. Check lower control LED. 4. If lower control lit but upper isn't: replace upper control. If lower unlit: replace lower control."
+  },
+  {
+    "code": "Noise",
+    "name": "Abnormal noise — front roller",
+    "fix": "X21 / R3: electrophoretic coating on front roller causes noise at low speeds. Loosen belt half turn counterclockwise. If persists: replace front roller."
+  },
+  {
+    "code": "Static",
+    "name": "Static electricity",
+    "fix": "Wear cotton clothing. Touch ground before and after use. Maintain indoor humidity 40–60%. Use anti-static wristband. Install anti-static sticker (can be mailed to customer)."
+  },
+  {
+    "code": "Trip",
+    "name": "Circuit breaker trips (US/EU)",
+    "fix": "US: Unplug other appliances on same strip. Remove grounding copper strip and test. EU: Remove one end of motor grounding wire. If still trips: contact technical support."
+  }
+]

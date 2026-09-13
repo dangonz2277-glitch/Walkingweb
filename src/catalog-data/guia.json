@@ -1,0 +1,244 @@
+[
+  {
+    "sec": "Identificar modelo",
+    "icon": "🔍",
+    "items": [
+      {
+        "q": "¿Cómo saber qué modelo tienen?",
+        "a": "En el manual: el rectángulo rojo = nombre técnico, el verde = modelo guía (ej. R1 Pro). En la caminadora: nameplate cerca del handrail o en la parte de atrás al doblarla. En Shopify: número de orden. Por la tapa del manual: WPPRO, Walking Station, Elite Pro (= X218)."
+      },
+      {
+        "q": "Modelos distribuidor (no siguen WP/TR)",
+        "a": "Ver spreadsheet de distribuidores. Ej: WPPRO (Costco), Elite Pro (Costco = X218), Walking Station / Z1 Pro (Dicks), MX3 (QVC), MX16 (QVC + Canadá), X55 (Dicks = X218), X25SE (Dicks = MX16+)."
+      }
+    ]
+  },
+  {
+    "sec": "Info a preguntar en cada llamada",
+    "icon": "📋",
+    "items": [
+      {
+        "q": "¿Qué preguntar siempre en cada llamada?",
+        "a": "1) Modelo. 2) Dónde la compraron. 3) Cuándo la compraron. 4) Desde cuándo tienen el problema. 5) Si intentaron troubleshooting. 6) Si es callback de ticket anterior: si recibieron el email (buscar en spam/junk)."
+      },
+      {
+        "q": "Info por canal de compra",
+        "a": "Website: pedir order number → copiar en Herodash. Amazon: email + nombre + order number (formato xxx-xxxxxxx-xxxxxxx). Costco / Dicks / etc: email + nombre + Serial Number (SN, cerca del power cord o parte trasera al doblar)."
+      }
+    ]
+  },
+  {
+    "sec": "Llenado de tickets (Herodash)",
+    "icon": "🗂️",
+    "items": [
+      {
+        "q": "¿Qué debe tener siempre el ticket en Herodash?",
+        "a": "Siempre incluir: de dónde lo compraron, hace cuánto, cuándo empezó el issue. En el título y descripción: lugar de compra + order ID. Si no saben o es para pedir manual: 'store not provided' en ambos campos."
+      },
+      {
+        "q": "¿Cuándo crear ticket?",
+        "a": "Errores de código, problemas de velocidad, reemplazo de piezas, problemas técnicos generales, cancelaciones de orden, cambios de dirección/email, returns y refunds, el cliente quiere videos/descuentos, walking pad no llega o se perdió, accessory box incompleto o faltante, ruidos (pedir video primero)."
+      }
+    ]
+  },
+  {
+    "sec": "Emails de contacto",
+    "icon": "📧",
+    "items": [
+      {
+        "q": "¿A qué email se mandan videos/fotos de problemas?",
+        "a": "support@walkingpad.com — para videos de ruidos, fotos de daños, problemas técnicos generales."
+      },
+      {
+        "q": "¿Email para standing desks de Amazon?",
+        "a": "support-desk@kingsmith.com — foto o video del problema."
+      },
+      {
+        "q": "¿Otros emails importantes?",
+        "a": "Marketing / no-support: contact@walkingpad.com o marketing@walkingpad.com. Europa: EU.contact@walkingpad.com. Equipos de gimnasio KingSmith: support@kingsmithstrength.com. HitGo walking pads: support@hitgofit.com (otro team)."
+      }
+    ]
+  },
+  {
+    "sec": "Cancelar órdenes",
+    "icon": "❌",
+    "items": [
+      {
+        "q": "¿Cómo manejar cancelaciones?",
+        "a": "Pedir order number. Revisar estado: 'No preparado' + orden del día anterior o antes → decir que support hará lo posible, email en 24hs. 'No preparado' + orden del mismo día → email en 24hs confirmando cancelación. 'Preparado' → ya no se puede cancelar. Si ya está en camino → al recibirlo responder al email de support para next steps. Reportar como ticket en Zendesk, asignar a Anna."
+      }
+    ]
+  },
+  {
+    "sec": "Shopify y órdenes",
+    "icon": "🛒",
+    "items": [
+      {
+        "q": "Formatos de órdenes",
+        "a": "Shopify USA: 5 dígitos, empiezan con 9. Shopify Canadá: empieza con CA. Shopify KingSmith: empieza con KS (casi nunca llaman). Amazon: xxx-xxxxxxx-xxxxxxx (3 grupos: 3-7-7 dígitos)."
+      },
+      {
+        "q": "Serial Numbers (SN)",
+        "a": "Ubicados cerca del power cord y power switch cuando tienen handrail, o en la parte que toca el piso cuando la doblan. Formato: 'SN' + letras y números."
+      }
+    ]
+  },
+  {
+    "sec": "Tipos de productos",
+    "icon": "🏃",
+    "items": [
+      {
+        "q": "Just Walk (sin handrail)",
+        "a": "Sin handrail, máx 4 mph, sin incline (excepto Step Station en Dicks). Control remoto. Tienen modo Manual (M) y Auto (A). Auto no funciona bien sobre carpet → usar mat. C2/A1Pro/C1/P1: hasta 3.5mph. Z1: nueva, 4mph, 240lb, sin auto mode. R3/Z3: ver web."
+      },
+      {
+        "q": "Vertical Fold",
+        "a": "Doble fold, handrail recto fijo. No sirve under-desk. Knob + pantalla en handrail. Safety key obligatoria (si no: mensaje SAFE). X21: 7.5mph/243lb. X25: 10mph/300lb. X25+: igual + armrest. X214: 8.5mph/242lb + armrest. X218: 11.5mph/300lb + armrest."
+      },
+      {
+        "q": "Hybrid",
+        "a": "Handrail up/down → under-desk o caminadora normal. Walking mode (handrail abajo): máx 3.7mph + auto mode. Running mode (handrail arriba): velocidad máxima + sin auto mode. Safety key necesaria. R1 Pro: 6.2mph/242lb. R2: 7.5mph/242lb. Z3 hybrid: 6.5mph/242lb. R3 hybrid: 7.5mph/265lb."
+      },
+      {
+        "q": "Classic Flat Fold / Collapsible",
+        "a": "Dos knobs a los lados para subir handrail. MC11: pantalla táctil led al medio, 7.5mph, 242lb, safety key. G1 / Denise Austin: knobs, armrest, v2.0 = 7.5mph, v1.0 = 6.2mph. También en Dicks y HSN."
+      },
+      {
+        "q": "Modelos exclusivos de retailers",
+        "a": "WPPRO (Costco): 7.5mph/250lb. Walk&Work (Costco) = Z3. Elite Pro (Costco) = X218. Walking Station/Z1 Pro (Dicks): no foldable, foot pedal. MX3 (QVC): 7.5mph/265lb. MX16 (QVC+CA): upgraded X25, 10mph/300lb. X55 (Dicks) = X218. X25SE (Dicks) = MX16+ con armrest. LifeSmart W1+ (Dunhams): no foldable, incline manual. Step Station 480H-A (Dicks): 4mph + incline, no foldable."
+      },
+      {
+        "q": "Otros productos: Rower, Bench, Bike, Desks",
+        "a": "Rower: 3 modelos, diferencias en web. Agua en tank: a gusto del cliente (más agua = más resistencia). Agent blue cada 6 meses. Bench: Costco = premium (sin punching bag ni leg press). Web: básica/premium/ultimate. Bike W1B: en website. Standing Desks: varios modelos, ver catálogo."
+      }
+    ]
+  },
+  {
+    "sec": "Troubleshooting — Cinta (belt)",
+    "icon": "🔧",
+    "items": [
+      {
+        "q": "Belt se va a un lado (derecha o izquierda)",
+        "a": "Si va a la derecha: llave allen en ranura derecha posterior, ¼ vuelta horaria. Dejar correr la máquina sola 1-2 min. Repetir hasta centrar. Igual al lado contrario. En máquinas antiguas usar app: Workout → Settings → Belt Calibration. Vertical fold no necesita esto."
+      },
+      {
+        "q": "Cinta ya rozando un lado / con daño",
+        "a": "Ajustar manualmente: doblar la walking pad, centrar la cinta, repetir proceso. Si sigue yendo al lado → evitar más ajustes, crear ticket."
+      },
+      {
+        "q": "Marca diagonal en la cinta",
+        "a": "Normal. Es de fábrica, todos los modelos la tienen. No es un issue."
+      },
+      {
+        "q": "Polvo negro en la cinta",
+        "a": "Solo limpiar la máquina. Preguntar qué tipo de zapato usa. No es issue; si insisten pueden mandar foto a support."
+      },
+      {
+        "q": "Cinta con daño considerable",
+        "a": "Mandar foto a support@walkingpad.com sin crear ticket."
+      },
+      {
+        "q": "Cracking/popping noises bajo la cinta",
+        "a": "Doblar la máquina y revisar si hay burbujas bajo la cinta. Pincharlas con aguja para extraer el aire. Si persiste, mandar video a support."
+      },
+      {
+        "q": "Cinta resbala al caminar",
+        "a": "Con máquina detenida, ajustar ambos lados con llave allen ¼ vuelta hacia la derecha. Repetir hasta que no resbale. Si continúa → crear ticket."
+      }
+    ]
+  },
+  {
+    "sec": "Troubleshooting — Instalación",
+    "icon": "🔩",
+    "items": [
+      {
+        "q": "Máquina no se desdobla completamente",
+        "a": "Sostener la parte delantera y empujar con más fuerza (necesita tensión). Si la parte trasera vuelve a subir → demasiada tensión → llave allen antihoraria en ambos lados para aflojar, luego empujar de nuevo."
+      },
+      {
+        "q": "Emparejar control remoto",
+        "a": "1) Revisar baterías CR2032 (parte positiva hacia arriba, debajo del metal sujetador). 2) Quitar plástico separador. 3) Máquina apagada. 4) Encender switch + presionar botón bajo el (−) por 5 seg. 5) Confirmar: presionar start/stop o botón modo (flechas). 6) Si muestra M → presionar botón del medio para iniciar. Walking Station: quitar plástico blanco trasero, botón bajo (−) 5 seg, encender power switch. Stride Station F6: máquina apagada, presionar (+) mientras encienden, luego presionar play."
+      },
+      {
+        "q": "Subir handrail — modelos Z1 Pro / Walking Station",
+        "a": "Pisar el pedal al lado de la base del handrail y levantar al mismo tiempo. A veces hay que pisar fuertemente."
+      },
+      {
+        "q": "Subir handrail — Hybrid / G1 / MC11",
+        "a": "Girar knobs en ambos lados hacia la derecha (horario) hasta desajustar totalmente. Jalar levemente los tornillos. Levantar handrail. Ajustar tornillos girando hacia la izquierda (antihorario). OJO: muchos no jalan los knobs completamente antes de intentar levantar."
+      },
+      {
+        "q": "Subir handrail — Hybrid +",
+        "a": "Quitar tapas presionando y girando hacia la derecha en ambos lados. Poner brazos en su lugar apuntando al frente. Girar 180° hacia atrás para ajustar."
+      },
+      {
+        "q": "Subir handrail — Serie X (X25, X21, X214, etc.)",
+        "a": "Handrails fijos, no se ajustan. Para desdoblar: primero detener la máquina, luego desdoblar la parte de la caminadora."
+      },
+      {
+        "q": "Ajustar altura del handrail — Hybrid",
+        "a": "Al lado del handrail hay una palanca que se jala hacia arriba para ajustar la altura."
+      },
+      {
+        "q": "Lubricación",
+        "a": "Doblar la máquina lo suficiente para levantar la cinta. Aplicar aceite lubricante en la superficie plástica negra debajo de la cinta: medir 8 pulgadas desde la cabeza, dibujar 'Z's en ambos lados hasta la parte trasera. NO aplicar en máquinas nuevas. Repetir cada 2-3 meses. Aplica igual para W1+ Smart Fit."
+      }
+    ]
+  },
+  {
+    "sec": "Returns y Refunds",
+    "icon": "↩️",
+    "items": [
+      {
+        "q": "Política general de devoluciones",
+        "a": "Primero determinar de dónde compraron y si es nuestra máquina. Plataformas dan 30-60 días para return/refund."
+      },
+      {
+        "q": "Devolución — Website WalkingPad",
+        "a": "Preguntar razón y si ya recibieron email de support. Si primera vez: crear ticket. Confirmar dirección (aunque esté en Shopify). Plazo: 45 días desde recepción (holiday season: compras hasta 31 dic). Devolución por problema técnico/fábrica: sin costo. Por razón personal del cliente: cliente paga envío ($80-$120+). Refund: 3-5 business days tras llegada al almacén."
+      },
+      {
+        "q": "Devolución — Amazon",
+        "a": "Amazon suele decirles que nos contacten para autorizar. Crear ticket con: nombre, email, dirección, número de orden y detalles."
+      },
+      {
+        "q": "Devolución — Costco / Dicks / QVC / Sam's / HSN",
+        "a": "No podemos autorizar. Deben contactar al retailer. Si el retailer los envía con nosotros → pedir toda la info y crear ticket."
+      }
+    ]
+  },
+  {
+    "sec": "Garantía (Warranty)",
+    "icon": "🛡️",
+    "items": [
+      {
+        "q": "¿Cuánto dura la garantía?",
+        "a": "1 año base para todos los productos. Extra warranty solo se compra al mismo momento que la máquina (no después). +1 año = 2 total, +2 años = 3 total, +3 años = 4 total. No aplica para productos de otros retailers. Cubre reemplazo de piezas y soporte técnico."
+      },
+      {
+        "q": "¿Qué cubre y qué no?",
+        "a": "Cubre: reemplazo de piezas + instrucciones/videos para instalarlas. NO cubre máquina nueva (consultar con tech team si el cliente insiste). No se dan máquinas nuevas a productos de retailers. Repair center solo por autorización del tech team (no mencionarlo proactivamente)."
+      }
+    ]
+  },
+  {
+    "sec": "APP KSFit",
+    "icon": "📱",
+    "items": [
+      {
+        "q": "¿Cómo funciona la app KSFit?",
+        "a": "Descargar KSFit, crear cuenta (confirmación puede ir a spam/junk). En Workout: todo lo necesario para operar la máquina + settings (speed, belt calibration en máquinas antiguas, child lock, no-load para Z1). En Profile: feedback de app (no crear ticket para esto), cambiar unidades kg/lb (Settings → Unit Settings → Metric a Imperial → apagar máquina para reset)."
+      }
+    ]
+  },
+  {
+    "sec": "Notas rápidas",
+    "icon": "⚡",
+    "items": [
+      {
+        "q": "Notas y datos rápidos",
+        "a": "• No se puede enviar aceite por correo; cualquier aceite para treadmill sirve.\n• Warehouse en California; taxes solo al hacer la orden.\n• Discount code en website: CSGift. No combinar códigos. Accesorios sin descuento.\n• No envíos a PO Box.\n• Power cord: 6 pies de largo.\n• No hay forma de anular el beep (Z1 tiene opción en app).\n• Lubrication: después de 3 meses, no al estrenar.\n• P1 y C1: error 'no-c' en remoto = no conectado, solo emparejar de nuevo.\n• No hay incline (excepto Step Station y W1+). No hay mobile phone holders.\n• Safety key: siempre debe estar en handrail para que funcione (Hybrid, Vertical Fold).\n• Cuando bajan handrail Hybrid: safety key tiene que estar dentro.\n• Stride Station F6: para emparejar remoto → máquina apagada, presionar (+) mientras encienden, luego play.\n• Extra tools en box Walking Station: para abrirla si es necesario.\n• Cualquier power cord para arrocera funciona con las caminadoras."
+      }
+    ]
+  }
+]

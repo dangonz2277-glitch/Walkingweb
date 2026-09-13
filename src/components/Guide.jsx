@@ -1,0 +1,3 @@
+import { useState } from 'react';
+import { getGuide } from '../data/store.js';
+export default function Guide() { const [query,setQuery]=useState(''); return <section><h2>Guía de capacitación</h2><input aria-label="Buscar guía" placeholder="Buscar en la guía" value={query} onChange={e=>setQuery(e.target.value)}/>{getGuide().map((section,i)=>{const items=section.items.filter(x=>`${x.q} ${x.a}`.toLowerCase().includes(query.toLowerCase()));return items.length?<div key={i}><h3>{section.icon} {section.sec}</h3>{items.map((x,j)=><details key={j} open={Boolean(query)}><summary>{x.q}</summary><p className="preline">{x.a}</p></details>)}</div>:null})}</section> }

@@ -1,0 +1,34 @@
+[
+  {
+    "key": "All",
+    "label": "Todos"
+  },
+  {
+    "key": "Vertical Fold",
+    "label": "Vertical Fold"
+  },
+  {
+    "key": "Classic Flat Fold",
+    "label": "Classic"
+  },
+  {
+    "key": "Hybrid",
+    "label": "Hybrid"
+  },
+  {
+    "key": "Just Walk",
+    "label": "Just Walk"
+  },
+  {
+    "key": "Rowers",
+    "label": "Rowers"
+  },
+  {
+    "key": "Benches",
+    "label": "Benches"
+  },
+  {
+    "key": "Standing Desks",
+    "label": "Desks"
+  }
+]
