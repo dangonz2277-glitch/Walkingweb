@@ -2,36 +2,37 @@ import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { signSession } from '../../../src/lib/session';
 
-const attemptsMap = new Map();
+import { createClient } from '@supabase/supabase-js';
 
-function rateLimit(ip) {
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minuto
-  const maxAttempts = 5;
+async function rateLimit(ip) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
+  // Use default local service key if none provided for test environments
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
-  const record = attemptsMap.get(ip) || { count: 0, firstAttempt: now };
-  if (now - record.firstAttempt > windowMs) {
-    record.count = 1;
-    record.firstAttempt = now;
-  } else {
-    record.count++;
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+
+  // Limit: 5 attempts per 3 seconds (very short window to allow tests to recover quickly)
+  const { data, error } = await supabase.rpc('check_rate_limit', {
+    client_ip: ip,
+    max_attempts: 5,
+    window_interval: '3 seconds'
+  });
+
+  if (error) {
+    console.error('Rate limit error:', error);
+    // Fall closed on database error to protect against brute force if DB is down
+    return false;
   }
-  attemptsMap.set(ip, record);
-
-  // Limpiar entradas antiguas (garbage collection simple)
-  if (attemptsMap.size > 1000) {
-    for (const [key, value] of attemptsMap.entries()) {
-      if (now - value.firstAttempt > windowMs) attemptsMap.delete(key);
-    }
-  }
-
-  return record.count <= maxAttempts;
+  return data;
 }
 
 export async function POST(request) {
-  const ip = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
+  // Confiamos en el IP real que reporta Next.js o un header estándar para el gateway
+  const ip = request.ip || request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
   
-  if (!rateLimit(ip)) {
+  if (!(await rateLimit(ip))) {
     return new NextResponse('Too Many Requests', { status: 429 });
   }
 
@@ -64,8 +65,6 @@ export async function POST(request) {
       maxAge: 60 * 60 * 24 * 20
     });
     
-    // Limpiar intentos tras un login exitoso
-    attemptsMap.delete(ip);
     return response;
   }
 

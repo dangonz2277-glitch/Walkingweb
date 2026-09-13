@@ -39,7 +39,7 @@ La contraseña individual de ocho caracteres es una decisión de simplicidad con
 
 Crear un único repositorio Git en `WalkingWeb`, con rama principal protegida y trabajo por ramas/PR. Registrar los 42 productos y JSON fuente mediante hashes; guardar respaldo de los datos locales antes de migrar. Configurar CI para `npm test`, `npm run lint` y `npm run build`. No editar la antigua copia `react-app` ni el catálogo anterior. **Terminado cuando:** ambos agentes usan la misma raíz y cada cambio tiene diff, revisión y checks reproducibles. El primer commit local `f442b99` existe y `origin` está configurado; no hay push ni CI remoto ejecutado ni protección de `main`. Los hashes y respaldos deben verificarse; `supabase/.branches/_current_branch` quedó versionado por error y debe retirarse del índice.
 
-### 2. Cerrar el perímetro del sitio — bloqueante de publicación (Gateway local aprobado; publicación pendiente)
+### 2. Cerrar el perímetro del sitio — bloqueante de publicación (Gateway local aprobado; rate limit no aprobado)
 
 Elegir hosting que permita una puerta **del lado servidor o edge**. Implementar login general, logout, rotación de clave y sesión segura. Exigir la sesión en `/`, rutas internas, assets, JSON y APIs. Configurar secreto fuera de Git y fuera de cualquier variable `VITE_` pública; HTTPS, límites de intentos y respuesta genérica a fallos. 
 
@@ -47,7 +47,7 @@ Elegir hosting que permita una puerta **del lado servidor o edge**. Implementar 
 - **Sesión sin estado (JWT):** El servidor usa cookies firmadas (HMAC-SHA-256) sin estado. El logout borra la cookie en el cliente, pero una copia extraída de la misma cookie seguirá siendo válida hasta su fecha de expiración codificada (20 días). Para revocar instantáneamente *todas* las sesiones de forma forzosa, se debe rotar `SITE_SESSION_SECRET` (rotar solo `SITE_PASSWORD` evita nuevos logins pero no revoca cookies existentes).
 - **Rate-Limiting (Mitigación de fuerza bruta):** Previo a su publicación, se deberá implementar un middleware o firewall (ej. Cloudflare Rate Limiting o Vercel Edge Firewall) para limitar los intentos de `POST /api/login` por IP a un máximo de 5 intentos por minuto, mitigando los ataques contra la contraseña maestra.
 
-Probar acceso directo a la URL de un JS/JSON sin sesión. **Terminado cuando:** una petición anónima no puede obtener el contenido protegido, el proxy bloquea sin fallar (500) ante cookies inválidas, y las redirecciones respetan el host de origen. En `83e16f8`, la suite local pasa y las redirecciones relativas corrigieron el cambio de host. Antes de publicar quedan la prueba de navegador y preview, un límite de intentos efectivo y la revisión de cobertura descrita en `ANTIGRAVITY_REVISION_06D.md`.
+Probar acceso directo a la URL de un JS/JSON sin sesión. **Terminado cuando:** una petición anónima no puede obtener el contenido protegido, el proxy bloquea sin fallar (500) ante cookies inválidas, y las redirecciones respetan el host de origen. En `8f7fda1` pasan las suites locales y mejoró la cobertura de gateway; sin embargo, el nuevo límite de intentos se evade cambiando `x-forwarded-for` y su contador en memoria no es compartido entre procesos. Antes de publicar hay que sustituirlo por una solución efectiva, probarla en HTTPS preview y verificar el flujo en navegador. Ver `ANTIGRAVITY_REVISION_06E.md`.
 
 ### 3. Fijar el dominio del reporte y los esquemas — EN PROGRESO (SQL/RLS probado localmente)
 

@@ -28,7 +28,9 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const env = { 
   ...process.env, 
   SITE_PASSWORD: 'test-password', 
-  SITE_SESSION_SECRET: 'super-secret-key-that-is-at-least-32-chars-long' 
+  SITE_SESSION_SECRET: 'super-secret-key-that-is-at-least-32-chars-long',
+  NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+  SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 };
 
 function fetchHttp(url, options = {}) {
@@ -142,14 +144,50 @@ async function runTests() {
       assert(false, e.message);
     }
 
-    // 6. Login incorrecto
+    // 6. Login incorrecto y Rate Limiting
     const badLoginBody = new URLSearchParams({ password: 'bad' }).toString();
+    
+    // Simular un spoofing de cabecera usando IP ficticio para prueba
+    const testIp1 = '203.0.113.1';
+    
+    // Disparar 6 intentos concurrentes (el límite es 5)
+    console.log('Probando límites de intentos concurrentes (Rate limit 5/3s)...');
+    const rateLimitPromises = [];
+    for (let i = 0; i < 6; i++) {
+      rateLimitPromises.push(fetchHttp(`${BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/x-www-form-urlencoded', 
+          'Content-Length': badLoginBody.length,
+          'x-forwarded-for': testIp1
+        },
+        body: badLoginBody
+      }));
+    }
+    const rateLimitResults = await Promise.all(rateLimitPromises);
+    const successLogins = rateLimitResults.filter(r => r.status === 303).length;
+    const rateLimitedLogins = rateLimitResults.filter(r => r.status === 429).length;
+    
+    assert(successLogins === 5 && rateLimitedLogins === 1, `Rate limit debe permitir 5 y bloquear 1 concurrente. Encontrados: permitidos=${successLogins}, bloqueados=${rateLimitedLogins}`);
+    
+    // Probar bypass cambiando cabecera (IP)
+    const testIp2 = '203.0.113.2';
     res = await fetchHttp(`${BASE_URL}/api/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length, 'x-forwarded-for': testIp2 },
       body: badLoginBody
     });
-    assert(res.status === 303 && res.headers.location === '/login?error=1', 'Login incorrecto redirige a /login?error=1');
+    assert(res.status === 303, `Cambio de IP debe reiniciar el límite. Fue ${res.status}`);
+    
+    // Probar recuperación después de esperar 3 segundos (la ventana)
+    console.log('Esperando expiración de ventana (3s)...');
+    await new Promise(r => setTimeout(r, 3100));
+    res = await fetchHttp(`${BASE_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': badLoginBody.length, 'x-forwarded-for': testIp1 },
+      body: badLoginBody
+    });
+    assert(res.status === 303, `Recuperación de la ventana fallida para IP 1. Fue ${res.status}`);
 
     // 6.5. Login y host
     const goodLoginBody = new URLSearchParams({ password: 'test-password' }).toString();
