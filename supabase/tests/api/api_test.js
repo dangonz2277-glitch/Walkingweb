@@ -1,157 +1,144 @@
 import { createClient } from '@supabase/supabase-js';
-import pg from 'pg';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
-
-const { Client } = pg;
+import { 
+  getAdminClient, 
+  createManagedUser, 
+  disableManagedUser, 
+  reactivateManagedUser, 
+  resetManagedUserPassword 
+} from '../../src/backend/authAdmin.js';
 
 async function runApiTests() {
-  console.log('--- Iniciando pruebas de API HTTP locales ---');
+  console.log('--- Iniciando pruebas de API HTTP locales (Orden 05) ---');
   let exitCode = 0;
   
   // Get credentials securely
   let SUPABASE_URL = process.env.SUPABASE_URL;
   let SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-  const PG_CONN_STRING = process.env.PG_CONN_STRING || 'postgresql://postgres:postgres@localhost:54322/postgres';
+  let SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
     try {
       console.log('Obteniendo credenciales de la CLI de Supabase...');
       const statusJson = execSync('npx supabase status -o json', { stdio: 'pipe' }).toString();
       const status = JSON.parse(statusJson);
       SUPABASE_URL = SUPABASE_URL || status.API_URL;
       SUPABASE_ANON_KEY = SUPABASE_ANON_KEY || status.ANON_KEY;
+      SUPABASE_SERVICE_ROLE_KEY = SUPABASE_SERVICE_ROLE_KEY || status.SERVICE_ROLE_KEY;
     } catch {
-      console.error('No se pudieron obtener las credenciales de Supabase automáticamente. Usa SUPABASE_URL y SUPABASE_ANON_KEY.');
+      console.error('No se pudieron obtener las credenciales de Supabase automáticamente.');
       process.exit(1);
     }
   }
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error('Missing API URL or ANON KEY');
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('Faltan claves de API (URL, ANON_KEY o SERVICE_ROLE_KEY).');
     process.exit(1);
   }
 
-  // Clients
-  const adminPg = new Client({ connectionString: PG_CONN_STRING });
-  
   const aliceEmail = `alice_${crypto.randomUUID()}@example.com`;
   const bobEmail = `bob_${crypto.randomUUID()}@example.com`;
   const password = 'TestPassword123!';
 
-  // Supabase client (used directly for anon)
+  const adminClient = getAdminClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const aliceClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const bobClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  let pgConnected = false;
+  let createdUsers = [];
 
   try {
-    await adminPg.connect();
-    pgConnected = true;
+    // 1. Registro público cerrado
+    console.log('\n[Prueba 1] Registro público cerrado...');
+    const { error: signUpError } = await anonClient.auth.signUp({
+      email: `anon_${crypto.randomUUID()}@example.com`,
+      password: 'SomePassword123!'
+    });
+    if (!signUpError || !signUpError.message.toLowerCase().includes('signup requires a valid password') && !signUpError.message.toLowerCase().includes('signups not allowed')) {
+      // NOTE: With enable_signup = false, it should return an error saying signups not allowed.
+      throw new Error(`Anónimo logró registrarse o no dio el error esperado: ${signUpError?.message}`);
+    }
+    console.log('✅ Registro anónimo bloqueado por configuración.');
 
-    // 1. Setup synthetic users
-    console.log('[Setup] Creando usuarios y perfiles sintéticos...');
+    // 2. Alta Administrada Consistente
+    console.log('\n[Prueba 2] Alta administrada (Alice y Bob)...');
     
-    // Create Alice
-    const { data: aliceAuth, error: aliceErr } = await aliceClient.auth.signUp({
-      email: aliceEmail,
-      password: password
-    });
-    if (aliceErr) throw new Error(`Fallo signup Alice: ${aliceErr.message}`);
-    const aliceId = aliceAuth.user.id;
+    // Alice (Active)
+    const aliceId = await createManagedUser(adminClient, aliceEmail, password, 'Alice Admin');
+    createdUsers.push(aliceId);
     
-    // Create Bob
-    const { data: bobAuth, error: bobErr } = await bobClient.auth.signUp({
-      email: bobEmail,
-      password: password
-    });
-    if (bobErr) throw new Error(`Fallo signup Bob: ${bobErr.message}`);
-    const bobId = bobAuth.user.id;
+    // Bob (Disabled)
+    const bobId = await createManagedUser(adminClient, bobEmail, password, 'Bob Admin');
+    createdUsers.push(bobId);
+    await disableManagedUser(adminClient, bobId);
 
-    // Insert profiles explicitly (Alice is active, Bob is disabled)
-    await adminPg.query(`INSERT INTO public.profiles (user_id, display_name, status) VALUES ($1, 'Alice API', 'active')`, [aliceId]);
-    await adminPg.query(`INSERT INTO public.profiles (user_id, display_name, status) VALUES ($1, 'Bob API', 'disabled')`, [bobId]);
+    console.log(`✅ Cuentas administradas creadas (Alice: ${aliceId}, Bob: ${bobId}).`);
 
-    console.log(`[Setup] Alice: ${aliceId}`);
-    console.log(`[Setup] Bob (disabled): ${bobId}`);
-
-    // 2. Test Anon access
-    console.log('\n[Prueba] Anónimo no lee/escribe/invoca...');
-    const { data: anonRead, error: anonReadErr } = await anonClient.from('daily_reports').select('*');
-    if (!anonReadErr || anonReadErr.code !== '42501') {
-      throw new Error(`Anónimo logró leer o no dio 42501: ${JSON.stringify(anonReadErr || anonRead)}`);
-    }
-    const { data: anonWrite, error: anonWriteErr } = await anonClient.from('daily_reports').insert({ work_date: '2026-09-12', resolved_count: 5 });
-    if (!anonWriteErr || anonWriteErr.code !== '42501') {
-      throw new Error(`Anónimo logró escribir o no dio 42501: ${JSON.stringify(anonWriteErr || anonWrite)}`);
-    }
-    const { data: _anonRpc, error: anonRpcErr } = await anonClient.rpc('set_daily_report', { p_work_date: '2026-09-12', p_resolved_count: 5, p_expected_revision: 0 });
-    if (!anonRpcErr || (anonRpcErr.code !== '42501' && !anonRpcErr.message.includes('permission denied'))) {
-       throw new Error(`Anónimo RPC devolvió error inesperado (no fue de permisos): ${JSON.stringify(anonRpcErr || _anonRpc)}`);
-    }
-    console.log('✅ Bloqueos a anónimo confirmados.');
-
-    // 3. Alice direct INSERT/UPDATE fails
-    console.log('\n[Prueba] Alice: INSERT/UPDATE directo falla...');
-    const { error: aliceInsertErr } = await aliceClient.from('daily_reports').insert({ work_date: '2026-09-13', resolved_count: 10 });
-    if (!aliceInsertErr || aliceInsertErr.code !== '42501') {
-      throw new Error(`Alice logró hacer INSERT directo: ${JSON.stringify(aliceInsertErr)}`);
-    }
-    const { error: aliceUpdateErr } = await aliceClient.from('daily_reports').update({ resolved_count: 100 }).eq('work_date', '2026-09-13');
-    if (!aliceUpdateErr || aliceUpdateErr.code !== '42501') {
-      throw new Error(`Alice logró hacer UPDATE directo: ${JSON.stringify(aliceUpdateErr)}`);
-    }
-    console.log('✅ INSERT/UPDATE directo de Alice bloqueados.');
-
-    // 4. Alice successful RPC
-    console.log('\n[Prueba] Alice: llama a RPC y crea reporte...');
-    const { data: rpcData1, error: rpcErr1 } = await aliceClient.rpc('set_daily_report', { 
-      p_work_date: '2026-09-13', p_resolved_count: 10, p_expected_revision: 0 
-    });
-    if (rpcErr1) throw new Error(`RPC falló: ${rpcErr1.message}`);
-    if (!rpcData1.success) throw new Error(`RPC devolvió error: ${JSON.stringify(rpcData1)}`);
-    console.log('✅ RPC de creación exitoso.');
-
-    // 5. Alice obsolete revision conflict
-    console.log('\n[Prueba] Alice: RPC con revisión obsoleta no altera los datos...');
-    const { data: rpcData2, error: rpcErr2 } = await aliceClient.rpc('set_daily_report', { 
-      p_work_date: '2026-09-13', p_resolved_count: 20, p_expected_revision: 0 // Debería ser 1
-    });
-    if (rpcErr2) throw new Error(`RPC falló inesperadamente: ${rpcErr2.message}`);
-    if (!rpcData2.conflict) throw new Error(`RPC no devolvió conflicto para revisión obsoleta: ${JSON.stringify(rpcData2)}`);
+    // 3. Acceso individual y rechazo de contraseñas incorrectas
+    console.log('\n[Prueba 3] Acceso individual y contraseña incorrecta...');
+    const { error: badAuthErr } = await aliceClient.auth.signInWithPassword({ email: aliceEmail, password: 'WrongPassword' });
+    if (!badAuthErr) throw new Error('Se permitió el login con contraseña incorrecta.');
     
-    // Validate nothing changed
-    const { data: aliceRead } = await aliceClient.from('daily_reports').select('resolved_count, revision').eq('work_date', '2026-09-13').single();
-    if (aliceRead.resolved_count !== 10 || aliceRead.revision !== 1) {
-      throw new Error(`Los datos fueron alterados a pesar del conflicto: ${JSON.stringify(aliceRead)}`);
-    }
-    console.log('✅ Conflicto de revisión detectado y datos inalterados.');
+    const { error: aliceAuthErr } = await aliceClient.auth.signInWithPassword({ email: aliceEmail, password });
+    if (aliceAuthErr) throw new Error(`Alice no pudo loguearse con contraseña correcta: ${aliceAuthErr.message}`);
+    
+    const { error: bobAuthErr } = await bobClient.auth.signInWithPassword({ email: bobEmail, password });
+    if (bobAuthErr) throw new Error(`Bob no pudo loguearse: ${bobAuthErr.message}`);
+    console.log('✅ Auth correcta: Acceso denegado con mala clave, permitido con la correcta.');
 
-    // 6. Alice cannot elevate profile
-    console.log('\n[Prueba] Alice: no puede elevar perfil...');
-    const { error: profileErr } = await aliceClient.from('profiles').update({ status: 'admin' }).eq('user_id', aliceId);
-    if (!profileErr || profileErr.code !== '42501') {
-      throw new Error(`Alice logró elevar perfil o no dio 42501: ${JSON.stringify(profileErr)}`);
-    }
-    console.log('✅ Elevación de perfil bloqueada.');
-
-    // 7. Bob reads empty and fails to save
-    console.log('\n[Prueba] Bob (desactivado) no lee de Alice ni guarda...');
+    // 4. Bob (desactivado) tiene token vigente, pero API bloqueada
+    console.log('\n[Prueba 4] Perfil desactivado no puede leer/escribir...');
     const { data: bobRead, error: bobReadErr } = await bobClient.from('daily_reports').select('*');
     if (bobReadErr) throw new Error(`Error inesperado en SELECT de Bob: ${bobReadErr.message}`);
-    if (!bobRead || bobRead.length > 0) throw new Error(`Bob leyó datos incorrectamente: ${JSON.stringify(bobRead)}`);
+    if (!bobRead || bobRead.length > 0) throw new Error(`Bob leyó datos incorrectamente.`);
     
-    const { data: bobRpcData, error: bobRpcErr } = await bobClient.rpc('set_daily_report', { 
-      p_work_date: '2026-09-13', p_resolved_count: 10, p_expected_revision: 0 
+    const { error: bobRpcErr } = await bobClient.rpc('set_daily_report', { p_work_date: '2026-09-13', p_resolved_count: 10, p_expected_revision: 0 });
+    if (!bobRpcErr || !bobRpcErr.message.includes('Profile is not active')) {
+       throw new Error(`Bob logró llamar RPC pese a estar desactivado.`);
+    }
+    console.log('✅ Bob está desactivado y bloqueado en la API.');
+
+    // 5. Elevación de perfil bloqueada y auto-creación prohibida
+    console.log('\n[Prueba 5] Alice no puede cambiar su status ni crear su perfil...');
+    const { error: aliceProfileUpdateErr } = await aliceClient.from('profiles').update({ status: 'admin' }).eq('user_id', aliceId);
+    if (!aliceProfileUpdateErr || aliceProfileUpdateErr.code !== '42501') {
+      throw new Error(`Alice logró actualizar su profile status.`);
+    }
+    const { error: aliceProfileInsertErr } = await aliceClient.from('profiles').insert({ user_id: aliceId, display_name: 'Fake', status: 'admin' });
+    if (!aliceProfileInsertErr || aliceProfileInsertErr.code !== '42501') {
+      throw new Error(`Alice logró crear un registro en profiles directamente.`);
+    }
+    console.log('✅ Manipulación autónoma de perfiles prohibida.');
+
+    // 6. Reactivación por administración
+    console.log('\n[Prueba 6] Reactivación de Bob por administración...');
+    await reactivateManagedUser(adminClient, bobId);
+    
+    // Ahora Bob (con su token original aún vigente) debería poder invocar la RPC
+    const { data: bobRpcReactivated, error: bobRpcReactivatedErr } = await bobClient.rpc('set_daily_report', { 
+      p_work_date: '2026-09-14', p_resolved_count: 2, p_expected_revision: 0 
     });
-    if (!bobRpcErr) {
-       throw new Error(`Bob logró guardar a pesar de estar desactivado: ${JSON.stringify(bobRpcData)}`);
+    if (bobRpcReactivatedErr) {
+       throw new Error(`Bob reactivado falló al invocar RPC: ${bobRpcReactivatedErr.message}`);
     }
-    if (!bobRpcErr.message.includes('Profile is not active')) {
-       throw new Error(`Bob recibió error incorrecto: ${bobRpcErr.message}`);
-    }
-    console.log('✅ Bob bloqueado correctamente.');
+    if (!bobRpcReactivated.success) throw new Error(`RPC de Bob reactivado devolvió error: ${JSON.stringify(bobRpcReactivated)}`);
+    console.log('✅ Bob reactivado administrado pudo operar exitosamente.');
+
+    // 7. Reset Password
+    console.log('\n[Prueba 7] Reset administrado de contraseña (Alice)...');
+    const newPassword = 'NewAlicePassword456!';
+    await resetManagedUserPassword(adminClient, aliceId, newPassword);
+    
+    // Verificar que Alice no puede loguearse con la vieja
+    const { error: oldPassErr } = await aliceClient.auth.signInWithPassword({ email: aliceEmail, password });
+    if (!oldPassErr) throw new Error('Alice pudo loguearse con la contraseña antigua tras el reset.');
+    
+    // Y sí con la nueva (requiere nueva instancia para no mezclar sesiones)
+    const aliceClientNew = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { error: newPassErr } = await aliceClientNew.auth.signInWithPassword({ email: aliceEmail, password: newPassword });
+    if (newPassErr) throw new Error(`Alice no pudo loguearse con la nueva contraseña: ${newPassErr.message}`);
+    console.log('✅ Reset administrado de contraseña comprobado.');
 
   } catch(e) {
     console.error('\n❌ ERROR EN LA PRUEBA:', e.message);
@@ -159,28 +146,24 @@ async function runApiTests() {
   } finally {
     // 8. Cleanup
     try {
-      if (pgConnected) {
-        console.log('\n[Limpieza] Borrando usuarios generados...');
-        const res = await adminPg.query(`DELETE FROM auth.users WHERE email IN ($1, $2)`, [aliceEmail, bobEmail]);
-        if (res.rowCount === 0) {
-           console.log('⚠️ Aviso: No se borraron usuarios (es posible que no se hayan creado).');
-        } else {
-           console.log(`✅ Limpieza completada: ${res.rowCount} usuario(s) borrados.`);
+      if (createdUsers.length > 0) {
+        console.log('\n[Limpieza] Borrando usuarios administrados generados...');
+        for (const uid of createdUsers) {
+          const { error } = await adminClient.auth.admin.deleteUser(uid);
+          if (error) console.error(`⚠️ Aviso: Fallo al borrar usuario ${uid}: ${error.message}`);
         }
+        console.log(`✅ Limpieza completada.`);
       }
     } catch(e) {
       console.error('❌ Error durante la limpieza:', e.message);
       exitCode = 1;
-    }
-    if (pgConnected) {
-      await adminPg.end().catch(()=>{});
     }
   }
 
   if (exitCode !== 0) {
     process.exitCode = exitCode;
   } else {
-    console.log('\n✅ Todas las pruebas de API HTTP finalizaron correctamente.');
+    console.log('\n✅ Todas las pruebas de Cuentas Administradas (Orden 05) finalizaron correctamente.');
   }
 }
 

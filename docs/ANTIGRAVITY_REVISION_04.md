@@ -17,3 +17,9 @@ Codex revisó el commit `f442b9995ae4062b2eead33bd1545dc004fe3729` y ejecutó lo
 - CI usa Node `20.x`; Vite 8 declara `^20.19.0 || >=22.12.0`. Fija una versión compatible y mantenida (por ejemplo 22.12+ o una LTS posterior compatible), y no afirmes que CI pasó hasta ejecutarlo en GitHub.
 
 Orden 04 abierta. No conectar React, staging ni producción hasta que la prueba HTTP pase con tokens reales y errores comprobados.
+
+## Validación final local — 13 de septiembre de 2026
+
+Antigravity creó el commit `445cb21`, retiró `supabase/.branches/_current_branch` del índice, ajustó CI a Node 22.12.0, habilitó registro solo en la configuración local de prueba y corrigió la preparación de perfiles y las aserciones HTTP. Codex reinició Supabase local para aplicar Auth y ejecutó `npm run test:api`: **PASS**, con dos usuarios sintéticos y limpieza confirmada de ambos. También pasaron `supabase test db` (**40/40**), `npm run test:concurrency` (**5/5 ciclos**), `npm test` (**26/26**), lint sin advertencias y build. La primera ejecución de `test:api` no pudo encontrar Docker desde el subproceso `npx supabase status`; pasó al incluir la ruta de Docker Desktop en `PATH`. La documentación de ejecución debe mencionar que Docker y Supabase CLI deben ser localizables desde el proceso de test.
+
+Orden 04 **cerrada para API local**. Quedan pendientes CI ejecutado en GitHub, staging, registro público cerrado fuera de test, gestión administrativa de perfiles y puerta general del sitio. El remoto `origin` está configurado, pero no se hizo push.

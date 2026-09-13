@@ -1,0 +1,10 @@
+# Orden 05 para Antigravity — cuentas administradas para Mi Reporte
+
+La Orden 04 pasó API HTTP local. Implementa y prueba el ciclo de cuentas personales **sin conectar React ni un proyecto remoto**. El acceso general al sitio se diseñará en un bloque separado; esta orden solo cubre identidades de Mi Reporte.
+
+1. Mantén el registro público **deshabilitado por defecto** en la configuración normal. Para pruebas que necesiten registro abierto, usa una configuración de test aislada o crea cuentas mediante Admin Auth local. La clave de servicio vive solo en el script/servidor y se obtiene del entorno local, nunca se embebe ni se envía al navegador. El test debe demostrar que el usuario anónimo no puede registrarse públicamente en la configuración normal.
+2. Define el procedimiento administrado de alta: Auth user y fila `profiles` se crean de forma consistente; fallo parcial no debe dejar una cuenta utilizable sin perfil. Define baja/desactivación y restablecimiento de contraseña. Usa contraseña individual de mínimo ocho caracteres como requisito del producto y permite más longitud. No almacenes ni registres contraseñas en SQL o logs.
+3. Prueba por HTTP local con dos usuarios: acceso individual correcto, rechazo de contraseña incorrecta, registro público cerrado, perfil desactivado sin lectura/escritura de reportes incluso con token aún vigente, y reactivación solo por administración. Verifica que ningún usuario puede cambiar `status` o crear su perfil por sí mismo. Las pruebas deben limpiar datos sintéticos y fallar ante errores inesperados.
+4. Mantén `supabase test db`, `npm run test:concurrency`, `npm run test:api`, `npm test`, lint y build verdes. Actualiza README/plan con la separación entre configuración local de pruebas y futura configuración de staging/producción. Entrega diff, comandos y resultados; no hagas push, despliegue ni cambies la UI.
+
+Antes del bloque de contraseña general habrá que elegir hosting/gateway que proteja **HTML, JS, CSS y JSON antes de entregarlos**. No implementes esa contraseña en React ni en una variable `VITE_`.
