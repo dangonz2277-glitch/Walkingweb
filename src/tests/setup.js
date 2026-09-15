@@ -13,9 +13,13 @@ vi.mock('../data/supabaseClient.js', () => ({
   }
 }));
 
-HTMLDialogElement.prototype.showModal = vi.fn(function mock() {
+if (typeof window.HTMLDialogElement === 'undefined') {
+  window.HTMLDialogElement = window.HTMLElement;
+}
+
+window.HTMLDialogElement.prototype.showModal = vi.fn(function mock() {
   this.open = true;
 });
-HTMLDialogElement.prototype.close = vi.fn(function mock() {
+window.HTMLDialogElement.prototype.close = vi.fn(function mock() {
   this.open = false;
 });

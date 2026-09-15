@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { normalizeUsername } from '../utils/auth.js';
 
 /**
  * Crea un cliente administrador usando la Service Role Key.
@@ -18,10 +19,12 @@ export function getAdminClient(supabaseUrl, serviceRoleKey) {
  * Procedimiento administrado de alta.
  * Crea el Auth user y el perfil de forma consistente.
  */
-export async function createManagedUser(adminClient, email, password, displayName) {
+export async function createManagedUser(adminClient, username, password, displayName) {
   if (password.length < 8) {
     throw new Error("La contraseña debe tener mínimo 8 caracteres.");
   }
+  
+  const email = normalizeUsername(username);
 
   // 1. Crear el usuario en auth.users
   const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
@@ -61,10 +64,10 @@ export async function disableManagedUser(adminClient, userId) {
   const { error: banError } = await adminClient.auth.admin.updateUserById(userId, { ban_duration: '876600h' });
   if (banError) throw new Error(`Error al banear usuario en Auth: ${banError.message}`);
   
-  // 2. Revocar tokens activos
-  await adminClient.auth.admin.signOut(userId, 'global');
+  // No usamos auth.admin.signOut aquí porque requiere el JWT del usuario en v2.
+  // El perfil desactivado y el RLS proveen la protección de recursos en vivo.
 
-  // 3. Actualizar perfil
+  // 2. Actualizar perfil
   const { error, count } = await adminClient.from('profiles').update({ status: 'disabled' }, { count: 'exact' }).eq('user_id', userId);
   if (error) throw new Error(`Error al desactivar perfil: ${error.message}`);
   if (count === 0) throw new Error(`No se actualizó ningún perfil al desactivar (UUID: ${userId}).`);
@@ -85,7 +88,7 @@ export async function reactivateManagedUser(adminClient, userId) {
 }
 
 /**
- * Restablece la contraseña de un usuario de forma administrada y revoca sesiones previas.
+ * Restablece la contraseña de un usuario de forma administrada.
  */
 export async function resetManagedUserPassword(adminClient, userId, newPassword) {
   if (newPassword.length < 8) {
@@ -96,7 +99,5 @@ export async function resetManagedUserPassword(adminClient, userId, newPassword)
   });
   if (error) throw new Error(`Error reseteando contraseña: ${error.message}`);
   
-  // Revocar sesiones globales activas al cambiar contraseña
-  const { error: signoutError } = await adminClient.auth.admin.signOut(userId, 'global');
-  if (signoutError) throw new Error(`Error revocando sesiones globales tras reset: ${signoutError.message}`);
+  // No usamos auth.admin.signOut aquí porque requiere JWT de usuario activo.
 }
