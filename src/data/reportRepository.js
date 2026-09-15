@@ -1,57 +1,100 @@
-/**
- * Interfaz/Contrato para el repositorio de reportes diarios.
- * Por ahora no conecta con Supabase, solo define la estructura.
- */
+import { supabase } from './supabaseClient.js';
 
-/**
- * @typedef {Object} DailyReport
- * @property {string} userId
- * @property {string} workDate
- * @property {number} resolvedCount
- * @property {number} revision
- */
+export async function getTodayReport(workDate) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
 
-/**
- * @typedef {Object} RepositoryResult
- * @property {boolean} success - true si la operación fue exitosa
- * @property {DailyReport} [data] - Datos devueltos (si success es true)
- * @property {string} [error] - Mensaje de error (si success es false)
- * @property {boolean} [conflict] - true si hubo un conflicto de revisión
- */
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .select('resolved_count, revision')
+      .eq('work_date', workDate)
+      .maybeSingle();
 
-/**
- * Obtiene el reporte del día para el usuario autenticado.
- * @param {string} workDate - La fecha de trabajo (YYYY-MM-DD).
- * @returns {Promise<RepositoryResult>} El resultado con el reporte, o nulo si no existe.
- */
-export async function getTodayReport(_workDate) {
-  return {
-    success: false,
-    error: 'Not implemented yet: backend integration pending'
-  };
+    if (error) throw error;
+    if (!data) return { success: true, data: null };
+
+    return {
+      success: true,
+      data: {
+        userId: user.id,
+        workDate: workDate,
+        resolvedCount: data.resolved_count,
+        revision: data.revision
+      }
+    };
+  } catch (err) {
+    return { success: false, error: err.message || 'Network error' };
+  }
 }
 
-/**
- * Guarda el conteo de tickets resueltos, detectando conflictos de revisión.
- * @param {string} _workDate - La fecha de trabajo.
- * @param {number} _resolvedCount - El nuevo conteo validado.
- * @param {number|null} _currentRevision - La revisión actual conocida por el cliente.
- * @returns {Promise<RepositoryResult>} Resultado de la operación.
- */
-export async function setResolvedCount(_workDate, _resolvedCount, _currentRevision) {
-  return {
-    success: false,
-    error: 'Not implemented yet: backend integration pending'
-  };
+export async function setResolvedCount(workDate, resolvedCount, currentRevision) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const { data, error } = await supabase.rpc('set_daily_report', {
+      p_work_date: workDate,
+      p_resolved_count: resolvedCount,
+      p_expected_revision: currentRevision || 0
+    });
+
+    if (error) throw error;
+
+    if (!data.success) {
+      if (data.conflict) {
+        return { success: false, conflict: true, currentRevision: data.current_revision };
+      }
+      return { success: false, error: 'Unknown error saving report' };
+    }
+
+    return {
+      success: true,
+      data: {
+        userId: user.id,
+        workDate: workDate,
+        resolvedCount: resolvedCount,
+        revision: data.revision
+      }
+    };
+  } catch (err) {
+    return { success: false, error: err.message || 'Network error' };
+  }
 }
 
-/**
- * Lista los reportes del usuario autenticado (historial).
- * @returns {Promise<RepositoryResult>} Resultado con la lista de reportes.
- */
 export async function listMyReports() {
-  return {
-    success: false,
-    error: 'Not implemented yet: backend integration pending'
-  };
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    const { data, error } = await supabase
+      .from('daily_reports')
+      .select('work_date, resolved_count, revision')
+      .order('work_date', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: data.map(r => ({
+        userId: user.id,
+        workDate: r.work_date,
+        resolvedCount: r.resolved_count,
+        revision: r.revision
+      }))
+    };
+  } catch (err) {
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
+export async function getProfile() {
+  try {
+    const { data, error } = await supabase.from('profiles').select('display_name, status').single();
+    if (error) throw error;
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }

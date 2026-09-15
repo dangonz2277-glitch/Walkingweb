@@ -1,5 +1,7 @@
 # Revisión de la Orden 07C (`0b5261d`)
 
+> Cierre posterior: los pendientes de este documento fueron corregidos en `9dcfd49`. Codex verificó 38/38 pruebas, lint, build y un navegador real con 42 productos y sin error de hidratación. **Orden 07 cerrada localmente el 14-09-2026.** Queda pendiente la validación integral previa a publicación, como para el resto del producto.
+
 Estado: **Orden 07 abierta por un caso de compatibilidad local**. Pasaron `npm test` (36/36), `npm run lint` y `npm run build`. Una prueba en navegador real sobre `http://localhost:3000` confirmó 42 productos y ausencia del error/overlay de hidratación de Next. No se creó información temporal durante la revisión; no hubo push ni despliegue.
 
 ## Corrección validada

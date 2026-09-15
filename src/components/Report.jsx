@@ -1,6 +1,0 @@
-import { useState } from 'react';
-import { loadRepState, saveRepState, loadRepHistory, finishRepDay } from '../data/reports.js';
-export default function Report({notify}) { const [draft,setDraft]=useState(loadRepState);const [history,setHistory]=useState(loadRepHistory);
-function update(key,value){const next={...draft,[key]:value};setDraft(next);if(!saveRepState(next))notify('No se pudo guardar el borrador. Conserva esta página abierta y reintenta.');else notify('');}
-function finish(){try{const result=finishRepDay(draft);setDraft(result.newDraft);setHistory(loadRepHistory());notify('Turno archivado.');}catch(e){notify(e.message);setHistory(loadRepHistory());}}
-return <section><h2>Mi Reporte</h2><p>Turno: {draft.shiftId}</p><div className="form-grid">{[['calls','Llamadas'],['emails','Emails'],['chats','Chats']].map(([key,label])=><label key={key}>{label}<input type="number" min="0" value={draft[key]} onChange={e=>update(key,e.target.value)}/></label>)}</div><label>Nota<textarea value={draft.note} onChange={e=>update('note',e.target.value)}/></label><button onClick={finish}>Finalizar turno</button><h3>Historial</h3>{history.map((item,i)=><div className="card" key={item.id||i}>{item.date} · {item.calls} llamadas · {item.emails} emails · {item.chats} chats<p>{item.note}</p></div>)}</section> }

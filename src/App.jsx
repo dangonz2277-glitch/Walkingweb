@@ -2,19 +2,18 @@
 
 import { useState } from 'react';
 import Catalog from './components/Catalog.jsx';
-import Guide from './components/Guide.jsx';
-import Report from './components/Report.jsx';
+import GuidePopup from './components/GuidePopup.jsx';
+import ReportPopup from './components/ReportPopup.jsx';
 import { exportData, importData } from './data/importExport.js';
 import { initStore } from './data/store.js';
-
-const pages={catalog:'Catálogo',guide:'Guía',report:'Mi Reporte'};
 
 export default function App({ initialData }) {
   useState(() => {
     if (initialData) initStore(initialData);
   });
   
-  const [page,setPage]=useState('catalog');
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [message,setMessage]=useState('');
   const [revision,setRevision]=useState(0);
   
@@ -38,9 +37,9 @@ export default function App({ initialData }) {
         <p>Consulta y trabajo local sin servidor</p>
       </header>
       <nav>
-        {Object.entries(pages).map(([key,label])=>
-          <button key={key} className={page===key?'active':''} onClick={()=>setPage(key)}>{label}</button>
-        )}
+        <button className={!isReportOpen && !isGuideOpen ? 'active' : ''}>Catálogo</button>
+        <button className={isGuideOpen ? 'active' : ''} onClick={() => setIsGuideOpen(true)}>Guía</button>
+        <button className={isReportOpen ? 'active' : ''} onClick={() => setIsReportOpen(true)}>Mi Reporte</button>
         <button onClick={()=>{
           try{
             exportData();
@@ -55,8 +54,11 @@ export default function App({ initialData }) {
       </nav>
       {message&&<p role="status" className="notice">{message}</p>}
       <main key={revision}>
-        {page==='catalog'?<Catalog notify={setMessage}/>:page==='guide'?<Guide/>:<Report notify={setMessage}/>}
+        <Catalog notify={setMessage}/>
       </main>
+      
+      <GuidePopup isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+      <ReportPopup isOpen={isReportOpen} onClose={() => setIsReportOpen(false)} />
     </>
   );
 }
