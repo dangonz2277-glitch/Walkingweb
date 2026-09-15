@@ -44,6 +44,28 @@ describe('datos y respaldo', () => {
     const locals = JSON.parse(localStorage.getItem('walkingpad_local_products'));
     expect(locals[0].model).toBe('V1');
   });
+  
+  it('exporta/importa un override renombrado dos veces sin duplicarlo', () => {
+    const p1 = { baseId: 'base:Vertical Fold|X218|WP510B4', name: 'Nombre cambiado 1', isOverride: true };
+    const data = backup({
+      walkingpad_local_products: JSON.stringify([p1])
+    });
+    expect(importData(data).added).toBe(1);
+    
+    // Segunda vez
+    const p2 = { baseId: 'base:Vertical Fold|X218|WP510B4', name: 'Nombre cambiado 2', isOverride: true };
+    const data2 = backup({
+      walkingpad_local_products: JSON.stringify([p2])
+    });
+    const result2 = importData(data2);
+    expect(result2.added).toBe(0); 
+    expect(result2.conflicts).toBe(1); // Conflicto de contenido, no lo duplica, lo conserva
+    
+    const locals = JSON.parse(localStorage.getItem('walkingpad_local_products'));
+    expect(locals.length).toBe(1);
+    expect(locals[0].name).toBe('Nombre cambiado 1'); // Conserva el que ya existía
+  });
+
   it('no sobrescribe una sesión existente y señala el conflicto', () => {
     localStorage.setItem('repSession_Daniel', JSON.stringify({ calls: 9, shiftId: 'mine' }));
     const result = importData(backup({ repSession_Daniel: JSON.stringify({ calls: 1, shiftId: 'theirs' }) }));

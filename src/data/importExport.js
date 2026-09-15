@@ -1,3 +1,5 @@
+import { getProductIdentity } from './store.js';
+
 const MAIN = ['walkingpad_local_products', 'repSession_Daniel', 'repHistory_Daniel'];
 // Backups may contain data from the retired module. Export it for archival only;
 // importing must never recreate that module's local data.
@@ -23,7 +25,7 @@ function parse(raw, key) {
   return value;
 }
 const identity = (key, item) => key === 'walkingpad_local_products'
-  ? (item.id != null ? `id:${item.id}` : `product:${String(item.model || '').toLowerCase()}|${String(item.name || '').toLowerCase()}|${String(item.cat || '').toLowerCase()}`)
+  ? getProductIdentity(item)
   : `shift:${item.shiftId || item.id || JSON.stringify(item)}`;
 function legacyShift(item, index) {
   const raw = JSON.stringify(item);

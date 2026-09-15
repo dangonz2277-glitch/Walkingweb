@@ -82,4 +82,113 @@ describe('interfaz React', () => {
     render(<App initialData={initialData} />);
     expect(screen.queryByRole('button', { name: 'Trackings' })).toBeNull();
   });
+  
+  it('renombra y revierte únicamente X21 entre los siete modelos —', () => {
+    render(<App initialData={initialData} />);
+    
+    // Buscar X21
+    fireEvent.change(screen.getByLabelText('Buscar catálogo'), { target: { value: 'X21' } });
+    
+    // Hay X21, X214, X218. Queremos exactamente X21. 
+    // El texto del botón incluye nombre y modelo: "X21 —"
+    const x21Button = screen.getAllByRole('button').find(b => b.textContent.includes('X21 —'));
+    fireEvent.click(x21Button);
+    fireEvent.click(screen.getByText('Editar'));
+    
+    // Renombrar a X21 Pro
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'X21 Pro' } });
+    fireEvent.click(screen.getByText('Guardar producto'));
+    
+    // Debería encontrarse ahora el X21 Pro y el badge de Override Local
+    expect(screen.getByText(/X21 Pro/)).toBeTruthy();
+    expect(screen.getByText(/Override Local/)).toBeTruthy();
+    
+    // Limpiar búsqueda
+    fireEvent.change(screen.getByLabelText('Buscar catálogo'), { target: { value: '' } });
+    
+    // Contar cuántos "Override Local" hay (debería ser 1, no 7)
+    expect(screen.getAllByText(/Override Local/).length).toBe(1);
+    
+    // Revertir X21 Pro
+    window.confirm = () => true;
+    const x21ProButton = screen.getAllByRole('button').find(b => b.textContent.includes('X21 Pro —'));
+    fireEvent.click(x21ProButton);
+    fireEvent.click(screen.getByText('Revertir a base'));
+    
+    expect(screen.queryByText(/Override Local/)).toBeNull();
+  });
+
+  it('edita por separado los dos productos con modelo TRG1F', () => {
+    render(<App initialData={initialData} />);
+    
+    fireEvent.change(screen.getByLabelText('Buscar catálogo'), { target: { value: 'TRG1F' } });
+    
+    // Ambos TRG1F (Denise Austin 2.0 y Denise Austin)
+    const buttons = screen.getAllByRole('button', { name: /Denise Austin/ });
+    expect(buttons.length).toBe(2);
+    
+    // Editar el primero
+    fireEvent.click(buttons[0]);
+    fireEvent.click(screen.getAllByText('Editar')[0]); // El botón editar del que está expandido
+    
+    fireEvent.change(screen.getByLabelText('Capacidad'), { target: { value: '999 kg' } });
+    fireEvent.click(screen.getByText('Guardar producto'));
+    
+    // Contar overrides
+    expect(screen.getAllByText(/Override Local/).length).toBe(1);
+  });
+
+  it('recarga tras editar y mantiene exactamente 42 productos base (sin duplicar)', () => {
+    // Simulamos que ya editamos un producto en storage
+    localStorage.setItem('walkingpad_local_products', JSON.stringify([
+      { baseId: 'base:Vertical Fold|X218|WP510B4', name: 'X218 Editado', isOverride: true }
+    ]));
+    
+    render(<App initialData={initialData} />);
+    // La suma de base + custom. Como hay 42 base y el override NO es custom (fusiona con la base), total debe ser 42.
+    expect(screen.getByText('42 productos')).toBeTruthy();
+    expect(screen.getByText(/X218 Editado/)).toBeTruthy();
+  });
+
+  it('resuelve migración con ambas claves, conserva conflictos y no borra antigua si falla validación/cuota', () => {
+    localStorage.setItem('walkingpad_custom_products', JSON.stringify([
+      { name: 'X21', model: '—', speed: 'Rápido', isOverride: true },
+      { name: 'Nuevo1', model: 'N1', cat: 'Classic', id: 'c1' }
+    ]));
+    localStorage.setItem('walkingpad_local_products', JSON.stringify([
+      { baseId: 'base:Vertical Fold|X21|—', name: 'X21', model: '—', speed: 'Lento', isOverride: true },
+      { name: 'Nuevo1', model: 'N1', cat: 'Classic', id: 'c1' }
+    ]));
+    
+    // Forzamos un fallo en VERIFICACIÓN (pero no en lectura inicial)
+    const originalGet = Storage.prototype.getItem;
+    let readCount = 0;
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function(key) {
+      if (key === 'walkingpad_local_products') {
+        readCount++;
+        // La lectura inicial pasa bien (readCount = 1).
+        // La lectura de verificación (readCount = 2) simula fallo devolviendo '[]'
+        if (readCount === 2) return '[]';
+      }
+      return originalGet.call(this, key);
+    });
+
+    render(<App initialData={initialData} />);
+    
+    // Verificamos que la clave antigua NO se borró porque falló la verificación
+    expect(originalGet.call(localStorage, 'walkingpad_custom_products')).toBeTruthy();
+    
+    vi.restoreAllMocks();
+    cleanup();
+    
+    // Ahora probamos que funciona y borra la antigua si la verificación es exitosa
+    render(<App initialData={initialData} />);
+    expect(localStorage.getItem('walkingpad_custom_products')).toBeNull();
+    
+    // Verificamos que se guardaron los conflictos
+    const conflicts = JSON.parse(localStorage.getItem('walkingpad_migration_conflicts'));
+    expect(conflicts.length).toBe(1);
+    expect(conflicts[0].existing.speed).toBe('Lento');
+    expect(conflicts[0].incoming.speed).toBe('Rápido');
+  });
 });
