@@ -194,6 +194,18 @@ describe('interfaz React', () => {
     expect(conflicts[0].incoming.speed).toBe('Rápido');
   });
 
+  it('conserva visible un override antiguo huérfano (cero coincidencias) que ya estaba en locals', async () => {
+    localStorage.setItem('walkingpad_local_products', JSON.stringify([
+      { name: 'X21 Raro', model: 'Desconocido', speed: 'Rápido', isOverride: true } // isOverride sin baseId y con nombre raro para no hacer match
+    ]));
+    render(<App initialData={initialData} />);
+    
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+    
+    // Debería encontrarse porque store.js lo marca con migrationConflict = true en lugar de omitirlo
+    expect(await screen.findByText(/X21 Raro/)).toBeTruthy();
+  });
+
   it('conserva productos personalizados históricos sin id como custom local estable', async () => {
     localStorage.setItem('walkingpad_custom_products', JSON.stringify([
       { name: 'Mi Invento', model: 'INV1', cat: 'Classic' } // Sin ID ni baseId, y no coincide con un base

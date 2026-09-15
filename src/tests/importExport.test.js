@@ -83,6 +83,27 @@ describe('datos y respaldo', () => {
     expect(localStorage.getItem('repHistory_Daniel')).toBe('{roto');
     expect(localStorage.getItem('repHistory_Daniel_corrupted')).toBe('{roto');
   });
+
+  it('exporta e importa conflictos de migración de forma idempotente y conserva corruptos', () => {
+    localStorage.setItem('walkingpad_migration_conflicts_corrupted', '{corrupto');
+    const conflict = { existing: { id: 1 }, incoming: { id: 2 } };
+    localStorage.setItem('walkingpad_migration_conflicts', JSON.stringify([conflict]));
+    
+    // Crear backup y limpiarlo
+    const data = createBackup();
+    localStorage.clear();
+    
+    // Importar
+    const result = importData(data);
+    expect(result.added).toBe(1); // Añade el conflicto
+    
+    // Reimportar para comprobar idempotencia
+    const result2 = importData(data);
+    expect(result2.added).toBe(0); // Ya existía
+    
+    expect(JSON.parse(localStorage.getItem('walkingpad_migration_conflicts'))).toHaveLength(1);
+    expect(localStorage.getItem('walkingpad_migration_conflicts_corrupted')).toBe('{corrupto');
+  });
   it('ignora datos del módulo retirado en respaldos antiguos', () => {
     importData(backup({ walkingpad_trackings: JSON.stringify([{ id: 1, ticket: 'T1' }]) }));
     expect(localStorage.getItem('walkingpad_trackings')).toBeNull();

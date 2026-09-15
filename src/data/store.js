@@ -44,7 +44,9 @@ export const getAllProducts = () => {
       if (matches.length === 1) {
         changed = true;
         return { ...localP, baseId: matches[0].baseId };
-      } else if (matches.length > 1) {
+      } else {
+        // Con cero coincidencias o más de una, no hay baseId seguro.
+        // Lo marcamos como conflicto de migración para que no se pierda de la interfaz.
         changed = true;
         return { ...localP, migrationConflict: true };
       }

@@ -1,6 +1,6 @@
 import { getProductIdentity } from './store.js';
 
-const MAIN = ['walkingpad_local_products', 'repSession_Daniel', 'repHistory_Daniel'];
+const MAIN = ['walkingpad_local_products', 'repSession_Daniel', 'repHistory_Daniel', 'walkingpad_migration_conflicts'];
 // Backups may contain data from the retired module. Export it for archival only;
 // importing must never recreate that module's local data.
 const LEGACY_ARCHIVE = ['walkingpad_trackings', 'walkingpad_trackings_corrupted'];
@@ -24,9 +24,11 @@ function parse(raw, key) {
   if (key === 'repSession_Daniel' ? !object(value) : !Array.isArray(value) || !value.every(object)) throw Error(`${key}: estructura inválida`);
   return value;
 }
-const identity = (key, item) => key === 'walkingpad_local_products'
-  ? getProductIdentity(item)
-  : `shift:${item.shiftId || item.id || JSON.stringify(item)}`;
+const identity = (key, item) => {
+  if (key === 'walkingpad_local_products') return getProductIdentity(item);
+  if (key === 'walkingpad_migration_conflicts') return JSON.stringify(item);
+  return `shift:${item.shiftId || item.id || JSON.stringify(item)}`;
+};
 function legacyShift(item, index) {
   const raw = JSON.stringify(item);
   let hash = 2166136261;
