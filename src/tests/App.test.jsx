@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import App from '../App.jsx';
 import { initStore, getBaseProducts, getIssues } from '../data/store.js';
 import categories from '../../data/categories.json';
@@ -138,7 +138,7 @@ describe('interfaz React', () => {
     expect(screen.getAllByText(/Override Local/).length).toBe(1);
   });
 
-  it('recarga tras editar y mantiene exactamente 42 productos base (sin duplicar)', () => {
+  it('recarga tras editar y mantiene exactamente 42 productos base (sin duplicar)', async () => {
     // Simulamos que ya editamos un producto en storage
     localStorage.setItem('walkingpad_local_products', JSON.stringify([
       { baseId: 'base:Vertical Fold|X218|WP510B4', name: 'X218 Editado', isOverride: true }
@@ -147,10 +147,10 @@ describe('interfaz React', () => {
     render(<App initialData={initialData} />);
     // La suma de base + custom. Como hay 42 base y el override NO es custom (fusiona con la base), total debe ser 42.
     expect(screen.getByText('42 productos')).toBeTruthy();
-    expect(screen.getByText(/X218 Editado/)).toBeTruthy();
+    expect(await screen.findByText(/X218 Editado/)).toBeTruthy();
   });
 
-  it('resuelve migración con ambas claves, conserva conflictos y no borra antigua si falla validación/cuota', () => {
+  it('resuelve migración con ambas claves, conserva conflictos y no borra antigua si falla validación/cuota', async () => {
     localStorage.setItem('walkingpad_custom_products', JSON.stringify([
       { name: 'X21', model: '—', speed: 'Rápido', isOverride: true },
       { name: 'Nuevo1', model: 'N1', cat: 'Classic', id: 'c1' }
@@ -176,6 +176,7 @@ describe('interfaz React', () => {
     render(<App initialData={initialData} />);
     
     // Verificamos que la clave antigua NO se borró porque falló la verificación
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
     expect(originalGet.call(localStorage, 'walkingpad_custom_products')).toBeTruthy();
     
     vi.restoreAllMocks();
@@ -183,6 +184,7 @@ describe('interfaz React', () => {
     
     // Ahora probamos que funciona y borra la antigua si la verificación es exitosa
     render(<App initialData={initialData} />);
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
     expect(localStorage.getItem('walkingpad_custom_products')).toBeNull();
     
     // Verificamos que se guardaron los conflictos
@@ -190,5 +192,52 @@ describe('interfaz React', () => {
     expect(conflicts.length).toBe(1);
     expect(conflicts[0].existing.speed).toBe('Lento');
     expect(conflicts[0].incoming.speed).toBe('Rápido');
+  });
+
+  it('conserva productos personalizados históricos sin id como custom local estable', async () => {
+    localStorage.setItem('walkingpad_custom_products', JSON.stringify([
+      { name: 'Mi Invento', model: 'INV1', cat: 'Classic' } // Sin ID ni baseId, y no coincide con un base
+    ]));
+    render(<App initialData={initialData} />);
+    
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+    
+    // Verificamos que se migró
+    const locals = JSON.parse(localStorage.getItem('walkingpad_local_products'));
+    expect(locals.length).toBe(1);
+    expect(locals[0].isCustom).toBe(true);
+    expect(locals[0].isOverride).toBe(false);
+    expect(locals[0].id).toMatch(/^legacy_custom_INV1_MiInvento$/);
+  });
+
+  it('no borra la clave antigua si falla por cuota al guardar los conflictos', async () => {
+    localStorage.setItem('walkingpad_custom_products', JSON.stringify([
+      { name: 'X21', model: '—', speed: 'Rápido', isOverride: true }
+    ]));
+    localStorage.setItem('walkingpad_local_products', JSON.stringify([
+      { baseId: 'base:Vertical Fold|X21|—', name: 'X21', model: '—', speed: 'Lento', isOverride: true }
+    ]));
+
+    // Simulamos fallo de cuota solo en la escritura de conflictos
+    const originalSet = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function(key, value) {
+      if (key === 'walkingpad_migration_conflicts') throw new Error('quota');
+      return originalSet.call(this, key, value);
+    });
+
+    render(<App initialData={initialData} />);
+    
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+    
+    // Debería abortar la eliminación de la clave antigua
+    expect(localStorage.getItem('walkingpad_custom_products')).toBeTruthy();
+  });
+  
+  it('no emite errores de consola durante el montaje (evita fallos de hidratación)', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<App initialData={initialData} />);
+    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { getAllProducts, getCategories, getIssues, getGeneralIssues, saveLocalProduct, deleteLocalProduct } from '../data/store.js';
+import { useState, useEffect } from 'react';
+import { getAllProducts, getBaseProducts, getCategories, getIssues, getGeneralIssues, saveLocalProduct, deleteLocalProduct } from '../data/store.js';
 
 const fields = [
   ['speed', 'Velocidad'], ['motor', 'Motor'], ['capacity', 'Capacidad'], 
@@ -10,17 +10,19 @@ const fields = [
 const emptyForm = { cat: 'Vertical Fold', name: '', model: '', capacity: '', links: [], notes: '' };
 
 export default function Catalog({ notify }) {
-  // Inicializamos directamente el estado para evitar el set-state-in-effect warning
-  // typeof window asegura que en un hipotético SSR Next.js no rompa, 
-  // aunque este componente es explícitamente cliente y usa localStorage
-  const [products, setProducts] = useState(() => {
-    return typeof window !== 'undefined' ? getAllProducts() : [];
-  });
+  const [products, setProducts] = useState(() => getBaseProducts());
   const [query, setQuery] = useState(''); 
   const [category, setCategory] = useState('All');
   const [expanded, setExpanded] = useState(null); 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setProducts(getAllProducts());
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const filtered = products.filter(p => 
     (category === 'All' || p.cat === category) && 

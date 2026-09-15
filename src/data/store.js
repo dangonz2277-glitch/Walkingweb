@@ -61,13 +61,19 @@ export const getAllProducts = () => {
     for (const oldP of legacy) {
       let adapted = { ...oldP };
       if (!adapted.id && !adapted.baseId) {
-        adapted.isOverride = true;
         const oldLegacyId = `legacy:${String(adapted.model || '').toLowerCase()}|${String(adapted.name || '').toLowerCase()}`;
         const matches = baseProds.filter(bp => `legacy:${String(bp.model || '').toLowerCase()}|${String(bp.name || '').toLowerCase()}` === oldLegacyId);
         if (matches.length === 1) {
+          adapted.isOverride = true;
           adapted.baseId = matches[0].baseId;
         } else if (matches.length > 1) {
+          adapted.isOverride = true;
           adapted.migrationConflict = true;
+        } else {
+          // No match with base models: it's a legacy custom product without ID
+          adapted.isCustom = true;
+          adapted.isOverride = false;
+          adapted.id = `legacy_custom_${String(adapted.model || '').replace(/\W/g, '')}_${String(adapted.name || '').replace(/\W/g, '')}`;
         }
       }
 
@@ -89,15 +95,22 @@ export const getAllProducts = () => {
       }
     }
 
-    if (hasConflicts) {
-      saveArray('walkingpad_migration_conflicts', conflictsArr);
-    }
+    // Solo borramos la llave antigua si podemos guardar y releer con éxito AMBAS colecciones
+    const savedLocals = saveArray('walkingpad_local_products', locals);
+    let conflictsSaved = true;
     
-    // Solo borramos la llave antigua si podemos guardar y releer con éxito
-    const saved = saveArray('walkingpad_local_products', locals);
-    if (saved) {
-      const verify = localStorage.getItem('walkingpad_local_products');
-      if (verify === JSON.stringify(locals)) {
+    if (hasConflicts) {
+      conflictsSaved = saveArray('walkingpad_migration_conflicts', conflictsArr);
+      if (conflictsSaved) {
+        // Verificar relectura de conflictos
+        const verifyConflicts = localStorage.getItem('walkingpad_migration_conflicts');
+        if (verifyConflicts !== JSON.stringify(conflictsArr)) conflictsSaved = false;
+      }
+    }
+
+    if (savedLocals && conflictsSaved) {
+      const verifyLocals = localStorage.getItem('walkingpad_local_products');
+      if (verifyLocals === JSON.stringify(locals)) {
         localStorage.removeItem('walkingpad_custom_products');
       }
     }
