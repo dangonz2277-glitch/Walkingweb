@@ -1,3 +1,4 @@
+import { getSecretKey } from '../../../src/utils/envUtils';
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { signSession } from '../../../src/lib/session';
@@ -5,8 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 
 async function rateLimit(ip) {
   const supabaseUrl = process.env.SUPABASE_URL;
-  
-  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  const serviceRoleKey = getSecretKey();
 
   if (!supabaseUrl || !serviceRoleKey) {
     // Fail closed si no hay credenciales (no se permiten logins sin rate limit)
@@ -33,8 +34,8 @@ async function rateLimit(ip) {
 
 async function resetRateLimit(ip) {
   const supabaseUrl = process.env.SUPABASE_URL;
-  
-  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  const serviceRoleKey = getSecretKey();
   if (!supabaseUrl || !serviceRoleKey) return;
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false }
@@ -44,7 +45,7 @@ async function resetRateLimit(ip) {
 
 export async function POST(request) {
   let ip = request.ip;
-  
+
   if (!ip) {
     if (process.env.IS_LOCAL_TEST === '1') {
       // Usado exclusivamente por gateway_test.js para probar la lógica de limitación.
@@ -58,12 +59,12 @@ export async function POST(request) {
       }
     }
   }
-  
+
   if (!ip || ip.trim() === '') {
     // Si no se puede garantizar una identidad de red inalterable, fallamos en estado cerrado.
     return new NextResponse('Internal Server Error: Unreliable Client Identity. Configure TRUST_FORWARDED_IP o use un runtime compatible con request.ip', { status: 500 });
   }
-  
+
   let allowed;
   try {
     allowed = await rateLimit(ip);
@@ -95,7 +96,7 @@ export async function POST(request) {
       status: 303,
       headers: { Location: '/' }
     });
-    
+
     response.cookies.set('site_session', sessionValue, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -103,10 +104,10 @@ export async function POST(request) {
       path: '/',
       maxAge: 60 * 60 * 24 * 20
     });
-    
+
     // Limpiar intentos para que otros en la misma IP no sean bloqueados injustamente
     await resetRateLimit(ip);
-    
+
     return response;
   }
 

@@ -1,14 +1,34 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-const envLocal = fs.existsSync('.env.local') ? fs.readFileSync('.env.local', 'utf8') : '';
-const matchSrk = envLocal.match(/^SUPABASE_SERVICE_ROLE_KEY=(.*)$/m);
-if (matchSrk && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  process.env.SUPABASE_SERVICE_ROLE_KEY = matchSrk[1];
+
+let envLocalContent = '';
+if (fs.existsSync('.env.local')) {
+  envLocalContent = fs.readFileSync('.env.local', 'utf8');
 }
-const matchSk = envLocal.match(/^SUPABASE_SECRET_KEY=(.*)$/m);
-if (matchSk && !process.env.SUPABASE_SECRET_KEY) {
-  process.env.SUPABASE_SECRET_KEY = matchSk[1];
+
+// Extraer sin imprimir y remover comillas (simples o dobles)
+function extractKey(envStr, keyName) {
+  const regex = new RegExp(`^${keyName}=(.*)$`, 'm');
+  const match = envStr.match(regex);
+  if (match) {
+    let val = match[1].trim();
+    if ((val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'))) {
+      val = val.slice(1, -1);
+    }
+    return val;
+  }
+  return null;
+}
+
+const localSrk = extractKey(envLocalContent, 'SUPABASE_SERVICE_ROLE_KEY');
+if (localSrk && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = localSrk;
+}
+
+const localSk = extractKey(envLocalContent, 'SUPABASE_SECRET_KEY');
+if (localSk && !process.env.SUPABASE_SECRET_KEY) {
+  process.env.SUPABASE_SECRET_KEY = localSk;
 }
 
 function findInDir(dir, filter, fileList = []) {
@@ -48,14 +68,12 @@ describe('Bundle check', () => {
       expect(content).not.toContain('SUPABASE_SECRET_KEY');
       
       if (serviceRoleKey && serviceRoleKey.length > 10) {
-        const containsValue = content.includes(serviceRoleKey);
-        if (containsValue) {
+        if (content.includes(serviceRoleKey)) {
           expect.fail(`Client chunk ${path.basename(file)} leaked the ACTUAL VALUE of the service role key!`);
         }
       }
       if (secretKey && secretKey.length > 10) {
-        const containsValue = content.includes(secretKey);
-        if (containsValue) {
+        if (content.includes(secretKey)) {
           expect.fail(`Client chunk ${path.basename(file)} leaked the ACTUAL VALUE of the secret key!`);
         }
       }
