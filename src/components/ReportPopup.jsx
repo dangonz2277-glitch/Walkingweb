@@ -5,6 +5,10 @@ import { getWorkDate } from '../utils/date.js';
 import { normalizeUsername } from '../utils/auth.js';
 
 export default function ReportPopup({ isOpen, onClose }) {
+  const [hasOpened, setHasOpened] = useState(isOpen);
+  if (isOpen && !hasOpened) {
+    setHasOpened(true);
+  }
   const dialogRef = useRef(null);
   
   useEffect(() => {
@@ -24,7 +28,7 @@ export default function ReportPopup({ isOpen, onClose }) {
     <dialog ref={dialogRef} onCancel={handleClose} onClose={handleClose} className="report-modal">
       <div className="report-modal-content">
         <button className="close-btn" onClick={handleClose} aria-label="Cerrar">X</button>
-        {isOpen && <ReportContent />}
+        {hasOpened && <ReportContent />}
       </div>
     </dialog>
   );
@@ -154,6 +158,8 @@ function ActiveReport() {
       if (active) {
         if (histRes.success) {
           setHistory(histRes.data);
+        } else {
+          setError(histRes.error);
         }
         setLoading(false);
       }
@@ -164,7 +170,8 @@ function ActiveReport() {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const { error: err } = await supabase.auth.signOut();
+    if (err) setError(err.message);
   };
 
   const handleSave = async (forceOverwrite = false) => {
@@ -198,7 +205,11 @@ function ActiveReport() {
       setTimeout(() => setSavedNotice(false), 3000);
       
       const histRes = await listMyReports();
-      if (histRes.success) setHistory(histRes.data);
+      if (histRes.success) {
+        setHistory(histRes.data);
+      } else {
+        setError(histRes.error);
+      }
     } else if (res.conflict) {
       const reportRes = await getTodayReport(workDate);
       if (reportRes.success && reportRes.data) {

@@ -1,18 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
-import { 
-  getAdminClient, 
-  createManagedUser, 
-  disableManagedUser, 
-  reactivateManagedUser, 
-  resetManagedUserPassword 
+import {
+  getAdminClient,
+  createManagedUser,
+  disableManagedUser,
+  reactivateManagedUser,
+  resetManagedUserPassword
 } from '../../../src/backend/authAdmin.js';
 
 async function runApiTests() {
   console.log('--- Iniciando pruebas de API HTTP locales (Orden 05) ---');
   let exitCode = 0;
-  
+
   // Get credentials securely
   let SUPABASE_URL = process.env.SUPABASE_URL;
   let SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -63,15 +63,15 @@ async function runApiTests() {
 
     // 2. Alta Administrada Consistente
     console.log('\n[Prueba 2] Alta administrada (Alice y Bob)...');
-    
+
     // Alice (Active)
     const aliceId = await createManagedUser(adminClient, aliceUsername, password, 'Alice Admin');
     createdUsers.push(aliceId);
-    
+
     // Bob (Disabled)
     const bobId = await createManagedUser(adminClient, bobUsername, password, 'Bob Admin');
     createdUsers.push(bobId);
-    
+
     // Test Rollback failure handling on dummy user
     try {
       // Mock failure by inserting conflicting profile manually? Or just relying on the code review logic.
@@ -84,14 +84,14 @@ async function runApiTests() {
 
     // 3. Acceso individual y rechazo de contraseñas incorrectas
     console.log('\n[Prueba 3] Acceso individual y contraseña incorrecta...');
-    const { error: badAuthErr } = await aliceClient.auth.signInWithPassword({ email: aliceUsername + '@walkingweb.internal', password: 'WrongPassword' });
+    const { error: badAuthErr } = await aliceClient.auth.signInWithPassword({ email: aliceUsername + "@walkingweb.internal", password: 'WrongPassword' });
     if (!badAuthErr) throw new Error('Se permitió el login con contraseña incorrecta.');
-    
-    const { error: aliceAuthErr } = await aliceClient.auth.signInWithPassword({ email: aliceUsername + '@walkingweb.internal', password });
+
+    const { error: aliceAuthErr } = await aliceClient.auth.signInWithPassword({ email: aliceUsername + "@walkingweb.internal", password });
     if (aliceAuthErr) throw new Error(`Alice no pudo loguearse con contraseña correcta: ${aliceAuthErr.message}`);
-    
+
     // Primero Bob se loguea para obtener un token activo
-    const { error: bobAuthErr } = await bobClient.auth.signInWithPassword({ email: bobUsername + '@walkingweb.internal', password });
+    const { error: bobAuthErr } = await bobClient.auth.signInWithPassword({ email: bobUsername + "@walkingweb.internal", password });
     if (bobAuthErr) throw new Error(`Bob no pudo loguearse inicialmente: ${bobAuthErr.message}`);
     console.log('✅ Auth correcta: Acceso denegado con mala clave, permitido con la correcta.');
 
@@ -101,14 +101,14 @@ async function runApiTests() {
 
     // Intentar nuevo login -> Debería ser denegado por ban
     const bobClientNew = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { error: bobNewLoginErr } = await bobClientNew.auth.signInWithPassword({ email: bobUsername + '@walkingweb.internal', password });
+    const { error: bobNewLoginErr } = await bobClientNew.auth.signInWithPassword({ email: bobUsername + "@walkingweb.internal", password });
     if (!bobNewLoginErr) throw new Error('Bob logró loguearse después de ser desactivado (el Auth ban falló).');
-    
+
     // Usar el cliente viejo con token vigente -> RLS y RPC bloquean
     const { data: bobRead, error: bobReadErr } = await bobClient.from('daily_reports').select('*');
     if (bobReadErr) throw new Error(`Error inesperado en SELECT de Bob: ${bobReadErr.message}`);
     if (!bobRead || bobRead.length > 0) throw new Error(`Bob leyó datos incorrectamente con token vigente.`);
-    
+
     const { error: bobRpcErr } = await bobClient.rpc('set_daily_report', { p_work_date: '2026-09-13', p_resolved_count: 10, p_expected_revision: 0 });
     // Al haber sido baneado y hacer signOut global, el token viejo en bobClient puede fallar con 401 o la RPC fallar por RLS.
     // Lo importante es que falle y no guarde nada.
@@ -132,13 +132,13 @@ async function runApiTests() {
     // 6. Reactivación por administración
     console.log('\n[Prueba 6] Reactivación de Bob por administración...');
     await reactivateManagedUser(adminClient, bobId);
-    
+
     // Bob se loguea de nuevo
-    const { error: bobReactivatedLoginErr } = await bobClientNew.auth.signInWithPassword({ email: bobUsername + '@walkingweb.internal', password });
+    const { error: bobReactivatedLoginErr } = await bobClientNew.auth.signInWithPassword({ email: bobUsername + "@walkingweb.internal", password });
     if (bobReactivatedLoginErr) throw new Error(`Bob reactivado falló al loguearse: ${bobReactivatedLoginErr.message}`);
 
-    const { data: bobRpcReactivated, error: bobRpcReactivatedErr } = await bobClientNew.rpc('set_daily_report', { 
-      p_work_date: '2026-09-14', p_resolved_count: 2, p_expected_revision: 0 
+    const { data: bobRpcReactivated, error: bobRpcReactivatedErr } = await bobClientNew.rpc('set_daily_report', {
+      p_work_date: '2026-09-14', p_resolved_count: 2, p_expected_revision: 0
     });
     if (bobRpcReactivatedErr) {
        throw new Error(`Bob reactivado falló al invocar RPC: ${bobRpcReactivatedErr.message}`);
@@ -147,22 +147,47 @@ async function runApiTests() {
     console.log('✅ Bob reactivado administrado pudo loguearse y operar exitosamente.');
 
     // 7. Reset Password y revocación de tokens
-    console.log('\n[Prueba 7] Reset administrado de contraseña (Alice) y revocación...');
+    console.log('\n[Prueba 7] Reset administrado de contraseña (Alice)...');
     const newPassword = 'NewAlicePassword456!';
     await resetManagedUserPassword(adminClient, aliceId, newPassword);
-    
+
     // Se eliminó la aserción de revocación inmediata (tokens antiguos pueden seguir sirviendo hasta que expiren, pero requerirán nueva clave en el siguiente login)
 
     // Verificar que Alice no puede loguearse con la vieja
     const aliceClientOldPass = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { error: oldPassErr } = await aliceClientOldPass.auth.signInWithPassword({ email: aliceUsername + '@walkingweb.internal', password });
+    const { error: oldPassErr } = await aliceClientOldPass.auth.signInWithPassword({ email: aliceUsername + "@walkingweb.internal", password });
     if (!oldPassErr) throw new Error('Alice pudo loguearse con la contraseña antigua tras el reset.');
-    
+
     // Y sí con la nueva
     const aliceClientNewPass = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { error: newPassErr } = await aliceClientNewPass.auth.signInWithPassword({ email: aliceUsername + '@walkingweb.internal', password: newPassword });
+    const { error: newPassErr } = await aliceClientNewPass.auth.signInWithPassword({ email: aliceUsername + "@walkingweb.internal", password: newPassword });
     if (newPassErr) throw new Error(`Alice no pudo loguearse con la nueva contraseña: ${newPassErr.message}`);
-    console.log('✅ Reset administrado de contraseña comprobado y tokens revocados.');
+    console.log('✅ Reset administrado de contraseña comprobado (los tokens expiran naturalmente).');
+
+    // 8. Prueba de aislamiento E2E (Orden 08C)
+    console.log("\n[Prueba 8] Aislamiento E2E (Dos perfiles guardando 17 tickets)...");
+
+    const aliceNewClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { error: aliceSignInErr } = await aliceNewClient.auth.signInWithPassword({ email: aliceUsername + "@walkingweb.internal", password: newPassword });
+    if (aliceSignInErr) throw new Error("Alice signIn err: " + aliceSignInErr.message);
+
+    const { data: aliceReport, error: aliceReportErr } = await aliceNewClient.rpc("set_daily_report", { p_work_date: "2026-09-16", p_resolved_count: 17, p_expected_revision: 0 });
+    if (aliceReportErr || !aliceReport || !aliceReport.success) throw new Error(`Alice no pudo guardar: ${aliceReportErr?.message || JSON.stringify(aliceReport)}`);
+
+    const bobNewClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { error: bobSignInErr } = await bobNewClient.auth.signInWithPassword({ email: bobUsername + "@walkingweb.internal", password: password });
+    if (bobSignInErr) throw new Error("Bob signIn err: " + bobSignInErr.message);
+
+    const { data: bobReport, error: bobReportErr } = await bobNewClient.rpc("set_daily_report", { p_work_date: "2026-09-16", p_resolved_count: 17, p_expected_revision: 0 });
+    if (bobReportErr || !bobReport || !bobReport.success) throw new Error(`Bob no pudo guardar: ${bobReportErr?.message || JSON.stringify(bobReport)}`);
+
+    const { data: aliceRead } = await aliceNewClient.from("daily_reports").select("*").eq("work_date", "2026-09-16");
+    if (aliceRead.length !== 1 || aliceRead[0].resolved_count !== 17 || aliceRead[0].user_id !== aliceId) throw new Error(`Alice read failed RLS aisolation`);
+
+    const { data: bobReadIsolation } = await bobNewClient.from("daily_reports").select("*").eq("work_date", "2026-09-16");
+    if (bobReadIsolation.length !== 1 || bobReadIsolation[0].resolved_count !== 17 || bobReadIsolation[0].user_id !== bobId) throw new Error(`Bob read failed RLS aisolation`);
+
+    console.log("✅ Aislamiento end-to-end comprobado. Ambos guardaron 17 sin sobrescribirse mutuamente y leyeron aisladamente.");
 
   } catch(e) {
     console.error('\n❌ ERROR EN LA PRUEBA:', e.message);
@@ -177,7 +202,7 @@ async function runApiTests() {
           if (error) {
             console.error(`❌ FALLO CRÍTICO DE LIMPIEZA: No se pudo borrar el UUID ${uid}. Error: ${error.message}`);
             // Force exit code failure on cleanup error
-            exitCode = 1; 
+            exitCode = 1;
           }
         }
         if (exitCode === 0) console.log(`✅ Limpieza completada.`);

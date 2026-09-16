@@ -69,9 +69,9 @@ Definir en `src/data` un contrato `getTodayReport`, `setResolvedCount`, `listMyR
 
 Mantener exportación de respaldo antiguo. Validar JSON, conservar claves `_corrupted`, mostrar vista previa, asignar propietario y fecha explícitos y no sobrescribir un total existente sin resolver conflicto. Archivar métricas antiguas sin convertirlas. Registrar el hash de lote para idempotencia y probar rollback/restauración. **Terminado cuando:** importar dos veces produce el mismo estado y un fallo a mitad de proceso no deja datos parciales.
 
-### 8. Integrar Mi Reporte y el acceso en React — EN PROGRESO (Orden 08 no aprobada)
+### 8. Integrar Mi Reporte y el acceso en React — COMPLETADA LOCALMENTE (Orden 08)
 
-Tras la puerta general, catálogo y guía abren sin perfil. Al abrir Mi Reporte, pedir la cuenta individual si no hay sesión válida; mostrar solo el contador propio del día y su historial de totales. La sesión general y la personal se distinguen claramente. El popup conserva foco, borrador y mensajes de guardado al cerrar/abrir. **Terminado cuando:** el flujo completo funciona con teclado y móvil, y cerrar sesión personal no expulsa innecesariamente del catálogo. `53dfa37` crea el popup y el repositorio, pero carece de pruebas del módulo, no alinea el alta administrativa con el usuario sintético, acepta fracciones mediante `parseInt` y deja `test:api` fallando. Ver `ANTIGRAVITY_REVISION_08.md`.
+Tras la puerta general, catálogo y guía abren sin perfil. Al abrir Mi Reporte, pide la cuenta individual y muestra solamente el contador propio del día y su historial. La sesión general y la personal están separadas; cerrar la personal mantiene abierto el catálogo. El popup conserva el borrador al cerrarse, carga la sesión solo después de abrirse, comunica errores y resuelve conflictos de revisión. La Orden 08 quedó completada localmente el 15-09-2026: build, 59 pruebas JS, lint, 48 pgTAP, cinco ciclos concurrentes con respuesta perdida y reintento, API aislada para dos perfiles y gateway pasaron. Codex validó teclado, foco y vista móvil 390×844. CI compila antes del escaneo del bundle, documenta las variables públicas y ejecuta gateway. Falta ejecutar el workflow remoto y staging dentro de la etapa 9 antes de publicar.
 
 ### 9. Validación integral en staging
 
