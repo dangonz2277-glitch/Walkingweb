@@ -32,6 +32,8 @@ const env = {
   NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
   SUPABASE_URL: 'http://127.0.0.1:54321',
   SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
+  SUPABASE_SECRET_KEY: '',
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: '',
   RATE_LIMIT_WINDOW: '3 seconds',
   IS_LOCAL_TEST: '1'
 };
@@ -92,7 +94,7 @@ async function runTests() {
   try {
     serverProc = spawn('./node_modules/.bin/next', ['start', '-H', '127.0.0.1', '-p', PORT.toString()], {
       env,
-      stdio: 'ignore'
+      stdio: 'inherit'
     });
   } catch(e) {
     console.error("Fallo al iniciar next:", e);
@@ -249,7 +251,7 @@ async function runTests() {
     const badEnv = { ...process.env, SITE_PASSWORD: 'test-password', SITE_SESSION_SECRET: '' };
     missingSecretProc = spawn('./node_modules/.bin/next', ['start', '-H', '127.0.0.1', '-p', PORT_BAD.toString()], {
       env: badEnv,
-      stdio: 'ignore'
+      stdio: 'inherit'
     });
     await waitServerReady(`http://127.0.0.1:${PORT_BAD}/login`);
     

@@ -15,8 +15,8 @@ async function runApiTests() {
 
   // Get credentials securely
   let SUPABASE_URL = process.env.SUPABASE_URL;
-  let SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-  let SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+  let SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
     try {
