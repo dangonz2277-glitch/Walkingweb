@@ -16,7 +16,7 @@ export function checkPreviewSecurityGuard(env) {
   let url;
   try {
     url = new URL(urlStr);
-  } catch (_e) {
+  } catch {
     throw new Error('Supabase URL is invalid.');
   }
 
