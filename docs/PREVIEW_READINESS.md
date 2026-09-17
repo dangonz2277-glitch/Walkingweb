@@ -1,11 +1,11 @@
-# Checklist de Preparación para Vercel Preview (Orden 13A)
+# Checklist de Preparación para Vercel Preview (Orden 13A y 13B)
 
 ## Auditoría de Entorno y Secretos
 - ✅ `package.json`, `.github/workflows/ci.yml` y scripts revisados. Ninguno imprime variables ni lee de forma insegura `.env.local`.
 - ✅ `.env.example` contiene *exclusivamente* nombres de las variables requeridas y valores claramente ficticios (documentación segura).
 - ✅ `.gitignore` excluye `.env.local` y toda configuración privada (`*.local`).
 - ✅ Artefactos de `.next` (incluyendo cliente y servidor) inspeccionados binariamente. Ningún valor real de `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, contraseñas globales ni `SITE_SESSION_SECRET` está embebido/inlined en el código compilado.
-- ✅ Datos obsoletos de Trackings (`walkingpad_trackings`) eliminados del código y confirmados ausentes en los artefactos generados.
+- ✅ Los datos de Trackings (`walkingpad_trackings`) se encuentran ausentes en el código activo y en los artefactos de ejecución. Las pruebas pueden conservar referencias históricas para verificar que los respaldos antiguos se sigan ignorando correctamente.
 
 ## Confirmación de Destino (Localhost)
 - Se confirmó activamente (vía `npx supabase status`) que el entorno local usa la API en `http://127.0.0.1:54321` y Postgres en `postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
@@ -14,7 +14,7 @@
 
 ## Ejecución Integrada Local
 
-### Comandos
+### Comandos Ejecutados
 ```bash
 npx supabase db reset --local
 npx supabase test db
@@ -51,20 +51,21 @@ npm run build
 - `SITE_SESSION_SECRET` (Secreto estricto, min. 32 chars)
 
 ### GitHub Actions (CI)
-Solo requiere mock values ficticios (e.g. `test-secret-key-1234567890-not-for-prod`) inyectados en `.github/workflows/ci.yml`. No requiere secretos reales del repositorio.
+El workflow de GitHub Actions fue revisado y los controles equivalentes pasaron exitosamente a nivel local (empleando valores mock). La ejecución real del CI en GitHub sigue pendiente hasta que se realice el primer push al repositorio.
 
 ### Vercel Preview y Producción
-Requieren la definición de todas las variables mencionadas arriba en sus respectivas configuraciones de entorno. En Vercel Preview se conectará al Supabase de Staging/Preview.
+Requieren la definición de todas las variables mencionadas arriba en sus respectivas configuraciones de entorno.
+**Nota Importante sobre Bases de Datos**: Actualmente existe un único proyecto Supabase alojado (WalkingWeb). Si el entorno de Preview usa estas mismas variables, Preview y Producción compartirán usuarios y reportes. Crear otro proyecto Supabase completamente aislado es opcional pero todavía no está implementado. Esta decisión arquitectónica debe tomarse **antes** de probar operaciones de escritura desde Vercel Preview.
 
 ## Migraciones Remotas Ya Aplicadas
-Las siguientes migraciones ya fueron empujadas previamente al proyecto real (Supabase remoto) durante órdenes anteriores:
+Las siguientes migraciones ya fueron empujadas previamente al proyecto real alojado durante órdenes anteriores:
 1. `20260912_initial_schema.sql`
 2. `20260912220000_atomic_save.sql`
 3. `20260913150000_rate_limit.sql`
 
 ## Riesgos y Validaciones Pendientes
-- **Ausencia de SMTP Real**: La autenticación sigue flujos administrados (Order 05 y Orden 11A) a través de un CLI administrativo local, sin soporte de correos mágicos de usuario directo (el registro está deshabilitado en Supabase remoto).
-- **Generación de Enlaces de Reactivación**: Los reseteos de clave y reactivaciones generan tokens válidos (verificados en test:api), los cuales serán consumidos localmente por el script CLI y entregados físicamente a los usuarios del centro, evitando dependencia de correo de terceros.
-- **Bordes de Middleware Edge**: La firma nativa de cookies está comprobada en Node; de surgir diferencias criptográficas en Vercel Edge Runtime, se revisará en la fase Preview.
+- **Ausencia de SMTP Real**: La autenticación sigue flujos puramente administrados sin soporte de correos mágicos, lo que nos desconecta de dependencias de terceros y SMTP.
+- **Gestión Administrativa Directa**: La reactivación de perfiles elimina administrativamente el ban en Auth y cambia directamente `profiles.status` a `active`. El restablecimiento de cuenta asigna directamente una nueva contraseña (que se introduce de forma oculta). No se generan ni se entregan enlaces de recuperación, tokens, ni correos.
+- **Bordes de Middleware Edge**: La firma nativa de cookies está comprobada en Node; de surgir diferencias criptográficas en Vercel Edge Runtime, se revisará durante la evaluación en Preview.
 
-**El repositorio se encuentra bloqueado, documentado, intacto respecto a entornos remotos, y oficialmente listo para Vercel Preview.**
+**El repositorio está documentado, preparado localmente para el primer push y listo para su correspondiente validación de CI.**
