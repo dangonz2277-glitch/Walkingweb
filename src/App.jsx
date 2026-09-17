@@ -24,11 +24,12 @@ export default function App({ initialData }) {
 
   return (
     <>
-      <header>
-        <h1>WalkingPad · Catálogo</h1>
-        <p>Catálogo y soporte técnico</p>
+      <a className="skip-link" href="#catalog-content">Saltar al catálogo</a>
+      <header className="site-header">
+        <div className="brand"><span className="brand-mark" aria-hidden="true">w.</span><span>WalkingPad<span className="brand-caption">SUPPORT WORKSPACE</span></span></div>
+        <span className="workspace-label">Tu espacio de soporte técnico</span>
       </header>
-      <nav>
+      <nav className="site-nav" aria-label="Navegación principal">
         <button className={!isReportOpen && !isGuideOpen && !isSettingsOpen ? 'active' : ''}>Catálogo</button>
         <button ref={guideBtnRef} className={isGuideOpen ? 'active' : ''} onClick={() => setIsGuideOpen(true)}>Guía</button>
         <button ref={reportBtnRef} className={isReportOpen ? 'active' : ''} onClick={() => setIsReportOpen(true)}>Mi Reporte</button>
@@ -36,7 +37,8 @@ export default function App({ initialData }) {
       </nav>
 
       {message && <div role="status" className="notice">{message}</div>}
-      <main key={revision}>
+      <main className="catalog-main" id="catalog-content" tabIndex={-1} key={revision}>
+        <div className="catalog-intro"><p className="eyebrow">CONOCIMIENTO EN MOVIMIENTO</p><h1>Cada modelo.<br /><span>Cada respuesta.</span></h1><p>Especificaciones, soluciones y recursos para acompañar cada consulta.</p></div>
         <Catalog notify={setMessage} />
       </main>
 

@@ -1,4 +1,5 @@
 import '../src/index.css';
+import '../src/ui-foundations.css';
 
 export const metadata = {
   title: 'WalkingPad · Catálogo',
