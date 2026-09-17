@@ -108,12 +108,12 @@ export default function Catalog({ notify = () => {} }) {
   return (
     <>
       <div className="controls">
-        <input aria-label="Buscar catálogo" placeholder="Buscar modelo, error, síntoma..." value={query} onChange={e => setQuery(e.target.value)} />
+        <input type="search" aria-label="Buscar catálogo" placeholder="Buscar modelo, error, síntoma..." value={query} onChange={e => setQuery(e.target.value)} />
         <button ref={addBtnRef} onClick={startAdd}>+ Producto</button>
-        <span>{filtered.length} {filtered.length === 1 ? 'producto' : 'productos'} | {filteredGeneralIssues.length} {filteredGeneralIssues.length === 1 ? 'problema general' : 'problemas generales'}</span>
-        <div className="tabs">
+        <span className="result-count" aria-live="polite" aria-atomic="true">{filtered.length} {filtered.length === 1 ? 'producto' : 'productos'} | {filteredGeneralIssues.length} {filteredGeneralIssues.length === 1 ? 'problema general' : 'problemas generales'}</span>
+        <div className="tabs" role="group" aria-label="Filtrar por categoría">
           {getCategories().map(c =>
-            <button key={c.key} className={category === c.key ? 'active' : ''} onClick={() => setCategory(c.key)}>
+            <button key={c.key} aria-pressed={category === c.key} className={category === c.key ? 'active' : ''} onClick={() => setCategory(c.key)}>
               {c.label}
             </button>
           )}
