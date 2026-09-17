@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export default function Modal({ isOpen, onClose, title, children, triggerRef, className = 'report-modal', ariaLabelledBy }) {
+export default function Modal({ isOpen, onClose, title, children, triggerRef, className = 'report-modal', ariaLabelledBy, ariaLabel }) {
   const dialogRef = useRef(null);
   
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function Modal({ isOpen, onClose, title, children, triggerRef, cl
   };
 
   return (
-    <dialog ref={dialogRef} onCancel={handleClose} onClose={handleClose} className={className} aria-labelledby={ariaLabelledBy || (title ? "dialog-title" : undefined)}>
+    <dialog ref={dialogRef} onCancel={handleClose} onClose={handleClose} className={className} aria-label={ariaLabel} aria-labelledby={!ariaLabel ? (ariaLabelledBy || (title ? "dialog-title" : undefined)) : undefined}>
       <div className="report-modal-content">
         <button type="button" className="close-btn" onClick={() => { if(isOpen) onClose(); }} aria-label="Cerrar">X</button>
         {title && <h2 id="dialog-title" style={{ marginTop: 0 }}>{title}</h2>}

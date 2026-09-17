@@ -13,7 +13,7 @@ export default function ReportPopup({ isOpen, onClose, triggerRef }) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} triggerRef={triggerRef} ariaLabelledBy="report-title">
+    <Modal isOpen={isOpen} onClose={onClose} triggerRef={triggerRef} ariaLabel="Mi Reporte">
       {hasOpened && <ReportContent />}
     </Modal>
   );
@@ -65,12 +65,12 @@ function ReportContent() {
     setIsSubmitting(false);
   };
 
-  if (loadingSession) return <h2 id="report-title">Cargando sesión...</h2>;
+  if (loadingSession) return <h2>Cargando sesión...</h2>;
 
   if (!session) {
     return (
       <div className="auth-form">
-        <h2 id="report-title">Ingresar a Mi Reporte</h2>
+        <h2>Ingresar a Mi Reporte</h2>
         <form onSubmit={handleLogin}>
           <label>Usuario
             <input type="text" value={username} onChange={e => setUsername(e.target.value)} required disabled={isSubmitting}/>
@@ -220,12 +220,12 @@ function ActiveReport() {
     setServerConflictRevision(null);
   };
 
-  if (loading) return <p>Cargando datos...</p>;
+  if (loading) return <h2>Cargando datos...</h2>;
 
   return (
     <div className="active-report">
       <header className="report-header">
-        <h2 id="report-title">Mi Reporte</h2>
+        <h2>Mi Reporte</h2>
         <div className="profile-info">
           <span>{profile?.display_name || 'Perfil'}</span>
           <button onClick={handleLogout} className="logout-btn">Cerrar Sesión</button>
