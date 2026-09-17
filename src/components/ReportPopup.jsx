@@ -65,12 +65,12 @@ function ReportContent() {
     setIsSubmitting(false);
   };
 
-  if (loadingSession) return <p>Cargando sesión...</p>;
+  if (loadingSession) return <h2 id="report-title">Cargando sesión...</h2>;
 
   if (!session) {
     return (
       <div className="auth-form">
-        <h2>Ingresar a Mi Reporte</h2>
+        <h2 id="report-title">Ingresar a Mi Reporte</h2>
         <form onSubmit={handleLogin}>
           <label>Usuario
             <input type="text" value={username} onChange={e => setUsername(e.target.value)} required disabled={isSubmitting}/>

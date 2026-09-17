@@ -41,7 +41,15 @@ describe('Order 12C - Frontend fixes', () => {
     expect(screen.getByText("No power · Machine won't turn on")).toBeTruthy();
 
     fireEvent.change(input, { target: { value: 'E05' } });
-    await waitFor(() => expect(screen.queryByText(/0 productos/)).toBeNull()); 
+    await waitFor(() => expect(screen.queryByText((content) => content.includes("28 productos"))).toBeTruthy());
+    expect(screen.queryByText((content, element) => {
+       if (element.tagName !== 'STRONG') return false;
+       return content.includes('X218');
+    })).toBeTruthy();
+    expect(screen.queryByText((content, element) => {
+       if (element.tagName !== 'STRONG') return false;
+       return content.includes('X25+');
+    })).toBeTruthy();
   });
 
   it('Flujo completo de Modal: apertura, foco, Escape real, scroll-lock y retorno de foco', async () => {
