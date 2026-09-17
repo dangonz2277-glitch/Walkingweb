@@ -39,17 +39,16 @@ Se realizaron comprobaciones con la API REST (PostgREST) usando las claves públ
 Se ha diseñado el script `supabase/tests/staging/auth_smoke_test.js` para validar la integración con Auth remoto. Este script **requiere autorización explícita** para ejecutarse.
 
 **Verificaciones Pendientes en el Dashboard de Supabase (por Daniel):**
-Debido a que la lectura remota de configuración mediante CLI devuelve el estado del registro, pero la configuración no fue empujada (`config push`), debes confirmar las siguientes opciones en el Dashboard de tu proyecto Supabase:
-- Que el **registro de nuevos usuarios públicos esté deshabilitado**. (Authentication -> Providers -> Email -> `Enable signup` = `false`).
-- Que el proveedor de correo electrónico (Email) se mantenga **habilitado**.
-- Que la duración del JWT (Session duration) concuerde con lo requerido por el proyecto (ej: 3600 segundos).
-- Comprobar que la validación de cuenta/correo electrónico sea compatible con cuentas creadas administrativamente (verificar en Settings -> Auth).
+Debido a que la configuración no ha sido empujada (`config push`), debes realizar los siguientes ajustes manuales en el Dashboard del proyecto:
+- **ATENCIÓN: El registro público de nuevos usuarios está actualmente HABILITADO en el servidor remoto**. Debes deshabilitarlo manualmente (Authentication -> Providers -> Email -> `Enable signup` = `false`) antes de correr el smoke test.
+- El proveedor de correo electrónico (Email) se encuentra **habilitado** de fábrica y exige confirmación. Esto es correcto y compatible, ya que la API del backend utiliza `email_confirm: true` al provisionar administrativamente las cuentas.
+- *Nota sobre sesiones*: La CLI infiere ausencia de cambios respecto a un entorno por defecto, pero no se validó el valor absoluto de forma directa. Comprueba visualmente que la duración de sesión (`jwt_expiry`) esté establecida a 3600 segundos (1 hora).
 
 **Plan del Smoke Test (Una vez autorizado):**
-1. Comprobación del Guard: Exigirá `ALLOW_STAGING_MUTATION=1` y prohibirá URLs locales, validando que el `project ref` coincide con el de staging.
-2. Crear Usuarios Sintéticos: Se darán de alta 2 cuentas (ej: `smoke1_<timestamp>`).
-3. Operaciones de Login y Guardado Atómico (RLS).
-4. Prueba de Bloqueo por Desactivación (Baneo remoto).
-5. Limpieza automática (*finally block*) para eliminar los usuarios generados, manteniendo el entorno staging limpio.
+1. Comprobación del Guard: Exigirá `ALLOW_STAGING_MUTATION=1`, rechazará URLs no seguras (HTTP, localhost, subdominios alterados o credenciales embebidas), validando exhaustivamente que el `project ref` coincida con el de staging (`unctlwxbttwfumnekctx.supabase.co`).
+2. Crear Usuarios Sintéticos: Se darán de alta 2 cuentas (ej: `smoke1_<timestamp>@walkingweb.internal`).
+3. Operaciones de Login y Guardado Atómico (RLS). Ambos registrarán la misma meta en la misma fecha para comprobar conflicto (atómico) y privacidad estricta (RLS).
+4. Prueba de Bloqueo por Desactivación: Se banea a un usuario y se comprueba que el token previo expira o falla al intentar consultar tablas protegidas o invocar la RPC (`set_daily_report`).
+5. Limpieza automática (*finally block*) estricta que captura errores. Elimina los usuarios de Auth desencadenando un ON DELETE CASCADE, y verifica mediante cliente administrador que no persisten registros huérfanos.
 
 *Nota de Seguridad: Este documento ha sido purgado de cadenas de conexión, contraseñas, secretos JWT o identificadores de base de datos internos.*
