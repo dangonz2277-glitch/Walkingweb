@@ -7,11 +7,12 @@ const CONNECTION_STRING = process.env.PG_CONN_STRING || 'postgresql://postgres:p
 async function runConcurrentAppendRace() {
   let testUserId = null;
   let originalError = null;
+  const cleanupErrors = [];
 
   const adminClient = new Client({ connectionString: CONNECTION_STRING });
   const clients = Array.from({ length: 5 }, () => new Client({ connectionString: CONNECTION_STRING }));
   
-  let connectedClients = [];
+  const connectedClients = [];
 
   try {
     await adminClient.connect();
@@ -43,7 +44,7 @@ async function runConcurrentAppendRace() {
     const results = await Promise.allSettled(promises);
     
     let failed = 0;
-    let returnedIds = new Set();
+    const returnedIds = new Set();
     
     for (const res of results) {
       if (res.status === 'rejected') {
@@ -76,13 +77,11 @@ async function runConcurrentAppendRace() {
   } catch (err) {
     originalError = err;
   } finally {
-    let cleanupFailed = false;
     if (testUserId && adminClient && connectedClients.includes(adminClient)) {
       try {
         await adminClient.query(`DELETE FROM auth.users WHERE id = $1`, [testUserId]);
       } catch (cleanupErr) {
-        console.error('Cleanup failed (user deletion):', cleanupErr);
-        cleanupFailed = true;
+        cleanupErrors.push(new Error('Cleanup failed (user deletion): ' + cleanupErr.message));
       }
     }
 
@@ -90,18 +89,17 @@ async function runConcurrentAppendRace() {
       try {
         await c.end();
       } catch (endErr) {
-        console.error('Failed to close client:', endErr);
-        cleanupFailed = true;
+        cleanupErrors.push(new Error('Failed to close client: ' + endErr.message));
       }
     }
+  }
 
-    if (originalError) {
-      throw originalError;
-    }
-    
-    if (cleanupFailed) {
-      throw new Error('Test passed but cleanup failed.');
-    }
+  if (originalError && cleanupErrors.length > 0) {
+    throw new AggregateError([originalError, ...cleanupErrors], 'Multiple errors occurred during test and cleanup');
+  } else if (originalError) {
+    throw originalError;
+  } else if (cleanupErrors.length > 0) {
+    throw new AggregateError(cleanupErrors, 'Test passed but cleanup failed');
   }
 }
 
