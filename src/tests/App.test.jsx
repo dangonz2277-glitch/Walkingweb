@@ -65,7 +65,7 @@ describe('interfaz React', () => {
     
     // Comprobar visualmente que dice Local Override y tiene 500 kg
     expect(screen.getByText(/Override Local/)).toBeTruthy();
-    expect(screen.getByText(/500 kg/)).toBeTruthy();
+    expect(screen.getAllByText(/500 kg/)[0]).toBeTruthy();
     
     // Comprobar storage
     const saved = JSON.parse(localStorage.getItem('walkingpad_local_products'));
@@ -74,7 +74,7 @@ describe('interfaz React', () => {
     
     // Revertir
     window.confirm = () => true;
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(first.name) })); // Expandir
+    const btn = screen.getByRole('button', { name: new RegExp(first.name) }); if(btn.getAttribute('aria-expanded') !== 'true') fireEvent.click(btn); // Expandir
     fireEvent.click(screen.getByText('Revertir a base'));
     
     const savedAfterRevert = JSON.parse(localStorage.getItem('walkingpad_local_products'));
@@ -114,7 +114,7 @@ describe('interfaz React', () => {
     // Revertir X21 Pro
     window.confirm = () => true;
     const x21ProButton = screen.getAllByRole('button').find(b => b.textContent.includes('X21 Pro —'));
-    fireEvent.click(x21ProButton);
+    if (x21ProButton.getAttribute('aria-expanded') !== 'true') fireEvent.click(x21ProButton);
     fireEvent.click(screen.getByText('Revertir a base'));
     
     expect(screen.queryByText(/Override Local/)).toBeNull();

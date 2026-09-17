@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Modal from './Modal.jsx';
-import { getAllProducts, getBaseProducts, getCategories, getIssues, getGeneralIssues, saveLocalProduct, deleteLocalProduct } from '../data/store.js';
+import { getAllProducts, getBaseProducts, getCategories, getIssues, getGeneralIssues, saveLocalProduct, deleteLocalProduct, getProductIdentity } from '../data/store.js';
 
 const fields = [
   ['speed', 'Velocidad'], ['motor', 'Motor'], ['capacity', 'Capacidad'],
@@ -14,7 +14,7 @@ export default function Catalog({ notify = () => {} }) {
   const [products, setProducts] = useState(() => getBaseProducts());
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
-  const [expanded, setExpanded] = useState(null);
+  const [expandedIdentity, setExpandedIdentity] = useState(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
@@ -121,15 +121,17 @@ export default function Catalog({ notify = () => {} }) {
       </div>
 
       <div className="grid">
-        {filtered.map((p, i) => (
+        {filtered.map((p, i) => {
+          const identity = getProductIdentity(p);
+          return (
           <article className="card" key={`${p.model || p.name}-${i}`}>
-            <button className="card-title" onClick={() => setExpanded(expanded === p ? null : p)} aria-expanded={expanded === p}>
+            <button className="card-title" onClick={() => setExpandedIdentity(expandedIdentity === identity ? null : identity)} aria-expanded={expandedIdentity === identity}>
               <strong>{p.name}</strong> <span>{p.model}</span>
             </button>
             <small>{p.cat}{p.isOverride ? ' · Override Local' : (p.isCustom ? ' · Local' : '')}</small>
             <p>{p.speed} · {p.capacity}</p>
 
-            {expanded === p && (
+            {expandedIdentity === identity && (
               <div className="detail">
                 <div className="action-row">
                   <button onClick={(e) => startEdit(p, e)}>Editar</button>
@@ -158,7 +160,8 @@ export default function Catalog({ notify = () => {} }) {
               </div>
             )}
           </article>
-        ))}
+          );
+        })}
       </div>
 
       {!filtered.length && <p>Sin resultados.</p>}
