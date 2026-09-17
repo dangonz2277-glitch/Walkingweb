@@ -5,16 +5,24 @@ const { Client } = pg;
 const CONNECTION_STRING = process.env.PG_CONN_STRING || 'postgresql://postgres:postgres@localhost:54322/postgres';
 
 async function runConcurrentAppendRace() {
+  let testUserId = null;
+  let originalError = null;
+
   const adminClient = new Client({ connectionString: CONNECTION_STRING });
-  
-  // Clients for concurrent requests
   const clients = Array.from({ length: 5 }, () => new Client({ connectionString: CONNECTION_STRING }));
+  
+  let connectedClients = [];
 
   try {
     await adminClient.connect();
-    for (const c of clients) await c.connect();
+    connectedClients.push(adminClient);
+    
+    for (const c of clients) {
+      await c.connect();
+      connectedClients.push(c);
+    }
 
-    const testUserId = crypto.randomUUID();
+    testUserId = crypto.randomUUID();
     await adminClient.query(`INSERT INTO auth.users (id) VALUES ($1)`, [testUserId]);
     await adminClient.query(`INSERT INTO public.profiles (user_id, display_name, status) VALUES ($1, 'ConcurrentAppendTester', 'active')`, [testUserId]);
 
@@ -35,6 +43,8 @@ async function runConcurrentAppendRace() {
     const results = await Promise.allSettled(promises);
     
     let failed = 0;
+    let returnedIds = new Set();
+    
     for (const res of results) {
       if (res.status === 'rejected') {
         console.error('Request failed:', res.reason);
@@ -44,6 +54,7 @@ async function runConcurrentAppendRace() {
         if (row.calls !== 10 || row.total !== 17) {
           throw new Error('Data returned from RPC is incorrect');
         }
+        returnedIds.add(row.id);
       }
     }
 
@@ -51,21 +62,50 @@ async function runConcurrentAppendRace() {
       throw new Error(`${failed} concurrent requests failed. Expected all to succeed idempotently.`);
     }
 
+    if (returnedIds.size !== 1) {
+      throw new Error(`Expected exactly 1 identical ID across all responses, found ${returnedIds.size}`);
+    }
+
     const { rows } = await adminClient.query(`SELECT * FROM public.report_entries WHERE client_entry_id = $1`, [clientEntryId]);
     if (rows.length !== 1) {
       throw new Error(`Expected exactly 1 row to be created due to idempotency, found ${rows.length}`);
     }
 
-    console.log(`Concurrent append test passed. 5 identical requests resulted in exactly ${rows.length} row without errors.`);
+    console.log(`Concurrent append test passed. 5 identical requests returned the exact same row ID: ${[...returnedIds][0]}`);
 
-    await adminClient.query(`DELETE FROM auth.users WHERE id = $1`, [testUserId]);
+  } catch (err) {
+    originalError = err;
   } finally {
-    await adminClient.end();
-    for (const c of clients) await c.end();
+    let cleanupFailed = false;
+    if (testUserId && adminClient && connectedClients.includes(adminClient)) {
+      try {
+        await adminClient.query(`DELETE FROM auth.users WHERE id = $1`, [testUserId]);
+      } catch (cleanupErr) {
+        console.error('Cleanup failed (user deletion):', cleanupErr);
+        cleanupFailed = true;
+      }
+    }
+
+    for (const c of connectedClients) {
+      try {
+        await c.end();
+      } catch (endErr) {
+        console.error('Failed to close client:', endErr);
+        cleanupFailed = true;
+      }
+    }
+
+    if (originalError) {
+      throw originalError;
+    }
+    
+    if (cleanupFailed) {
+      throw new Error('Test passed but cleanup failed.');
+    }
   }
 }
 
 runConcurrentAppendRace().catch(err => {
-  console.error('Test failed:', err);
+  console.error('Test execution failed:', err);
   process.exit(1);
 });

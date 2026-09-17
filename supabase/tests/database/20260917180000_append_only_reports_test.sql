@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(23);
+SELECT plan(37);
 
 -- Test 1: Table exists and has correct columns
 SELECT has_table('public', 'report_entries', 'Table report_entries exists');
@@ -10,14 +10,25 @@ SELECT has_column('public', 'report_entries', 'emails', 'Column emails exists');
 SELECT has_column('public', 'report_entries', 'live_chats', 'Column live_chats exists');
 SELECT has_column('public', 'report_entries', 'total', 'Column total exists');
 
+-- Check explicit privileges on table
+SELECT table_privs_are('public', 'report_entries', 'anon', ARRAY[]::text[], 'anon has NO privileges on report_entries');
+SELECT table_privs_are('public', 'report_entries', 'authenticated', ARRAY['SELECT'], 'authenticated has EXACTLY SELECT on report_entries');
+
+-- Check explicit privileges on RPC
+SELECT function_privs_are('public', 'append_report_entry', ARRAY['integer', 'integer', 'integer', 'uuid'], 'anon', ARRAY[]::text[], 'anon has NO execution on append_report_entry');
+SELECT function_privs_are('public', 'append_report_entry', ARRAY['integer', 'integer', 'integer', 'uuid'], 'authenticated', ARRAY['EXECUTE'], 'authenticated has EXACTLY EXECUTE on append_report_entry');
+SELECT function_privs_are('public', 'append_report_entry', ARRAY['integer', 'integer', 'integer', 'uuid'], 'public', ARRAY[]::text[], 'PUBLIC has NO execution on append_report_entry');
+
 -- Set up test data
 INSERT INTO auth.users (id, email) VALUES
     ('11111111-1111-1111-1111-111111111111', 'append_active@test.com'),
-    ('22222222-2222-2222-2222-222222222222', 'append_inactive@test.com');
+    ('22222222-2222-2222-2222-222222222222', 'append_inactive@test.com'),
+    ('33333333-3333-3333-3333-333333333333', 'append_active2@test.com');
 
 INSERT INTO public.profiles (user_id, status) VALUES
     ('11111111-1111-1111-1111-111111111111', 'active'),
-    ('22222222-2222-2222-2222-222222222222', 'disabled');
+    ('22222222-2222-2222-2222-222222222222', 'disabled'),
+    ('33333333-3333-3333-3333-333333333333', 'active');
 
 -- Test RLS is enabled
 SELECT policies_are(
@@ -27,9 +38,31 @@ SELECT policies_are(
     'Only read policy is present'
 );
 
--- Active user append success
+-- Active user 1
 SELECT set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', true);
 SELECT set_config('role', 'authenticated', true);
+
+-- Test NULL validations
+SELECT throws_ok(
+    $$ SELECT public.append_report_entry(NULL, 0, 0, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') $$,
+    'p_calls no puede ser nulo',
+    'Rechaza p_calls nulo'
+);
+SELECT throws_ok(
+    $$ SELECT public.append_report_entry(0, NULL, 0, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') $$,
+    'p_emails no puede ser nulo',
+    'Rechaza p_emails nulo'
+);
+SELECT throws_ok(
+    $$ SELECT public.append_report_entry(0, 0, NULL, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') $$,
+    'p_live_chats no puede ser nulo',
+    'Rechaza p_live_chats nulo'
+);
+SELECT throws_ok(
+    $$ SELECT public.append_report_entry(1, 1, 1, NULL) $$,
+    'p_client_entry_id no puede ser nulo',
+    'Rechaza p_client_entry_id nulo'
+);
 
 SELECT throws_ok(
     $$ SELECT public.append_report_entry(-1, 0, 0, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') $$,
@@ -87,6 +120,12 @@ SELECT lives_ok(
     'Reintento idempotente con el mismo payload no falla'
 );
 
+SELECT results_eq(
+    $$ SELECT COUNT(*)::int FROM public.report_entries WHERE user_id = '11111111-1111-1111-1111-111111111111' $$,
+    $$ VALUES (3) $$,
+    'El reintento idempotente no aumenta el número de filas'
+);
+
 -- Idempotency Conflict: Same UUID, different payload
 SELECT throws_ok(
     $$ SELECT public.append_report_entry(6, 3, 2, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') $$,
@@ -107,6 +146,34 @@ SELECT throws_ok(
     '42501',
     NULL,
     'authenticated no tiene permiso de UPDATE directo'
+);
+
+SELECT throws_ok(
+    $$ DELETE FROM public.report_entries $$,
+    '42501',
+    NULL,
+    'authenticated no tiene permiso de DELETE directo'
+);
+
+-- Switch to Active User 2
+SELECT set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', true);
+SELECT set_config('role', 'authenticated', true);
+
+SELECT results_eq(
+    $$ SELECT COUNT(*)::int FROM public.report_entries $$,
+    $$ VALUES (0) $$,
+    'Usuario activo 2 no puede leer las entradas del usuario 1'
+);
+
+SELECT lives_ok(
+    $$ SELECT public.append_report_entry(2, 2, 2, '99999999-9999-9999-9999-999999999999') $$,
+    'Usuario activo 2 puede insertar su propia entrada'
+);
+
+SELECT results_eq(
+    $$ SELECT COUNT(*)::int FROM public.report_entries $$,
+    $$ VALUES (1) $$,
+    'Usuario activo 2 lee exactamente su única entrada'
 );
 
 -- Switch to inactive user
@@ -143,7 +210,7 @@ SELECT throws_ok(
 
 -- Drop test data
 SELECT set_config('role', 'postgres', true);
-DELETE FROM auth.users WHERE id IN ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
+DELETE FROM auth.users WHERE id IN ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333');
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -33,8 +33,8 @@ CREATE POLICY "Usuarios pueden leer sus reportes de entrada"
     );
 
 -- Block direct modifications
-REVOKE INSERT, UPDATE, DELETE ON public.report_entries FROM authenticated, anon;
-REVOKE ALL ON public.report_entries FROM anon;
+REVOKE ALL ON public.report_entries FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.report_entries TO authenticated;
 
 -- Idempotent append RPC
 CREATE OR REPLACE FUNCTION public.append_report_entry(
@@ -46,7 +46,7 @@ CREATE OR REPLACE FUNCTION public.append_report_entry(
 RETURNS public.report_entries
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
     v_user_id UUID := auth.uid();
@@ -58,6 +58,11 @@ BEGIN
     IF v_user_id IS NULL THEN
         RAISE EXCEPTION 'Not authenticated';
     END IF;
+
+    IF p_calls IS NULL THEN RAISE EXCEPTION 'p_calls no puede ser nulo'; END IF;
+    IF p_emails IS NULL THEN RAISE EXCEPTION 'p_emails no puede ser nulo'; END IF;
+    IF p_live_chats IS NULL THEN RAISE EXCEPTION 'p_live_chats no puede ser nulo'; END IF;
+    IF p_client_entry_id IS NULL THEN RAISE EXCEPTION 'p_client_entry_id no puede ser nulo'; END IF;
 
     SELECT (status = 'active') INTO v_active FROM public.profiles WHERE user_id = v_user_id;
     IF NOT COALESCE(v_active, false) THEN
@@ -74,7 +79,7 @@ BEGIN
         RAISE EXCEPTION 'El total debe ser mayor que cero';
     END IF;
 
-    v_work_date := (now() AT TIME ZONE 'America/La_Paz')::date;
+    v_work_date := (pg_catalog.now() AT TIME ZONE 'America/La_Paz')::DATE;
 
     INSERT INTO public.report_entries (user_id, client_entry_id, work_date, calls, emails, live_chats)
     VALUES (v_user_id, p_client_entry_id, v_work_date, p_calls, p_emails, p_live_chats)
@@ -96,5 +101,5 @@ END;
 $$;
 
 -- Secure privileges
-REVOKE EXECUTE ON FUNCTION public.append_report_entry(INTEGER, INTEGER, INTEGER, UUID) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.append_report_entry(INTEGER, INTEGER, INTEGER, UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.append_report_entry(INTEGER, INTEGER, INTEGER, UUID) TO authenticated;
