@@ -73,9 +73,9 @@ Mantener exportación de respaldo antiguo. Validar JSON, conservar claves `_corr
 
 Tras la puerta general, catálogo y guía abren sin perfil. Al abrir Mi Reporte, pide la cuenta individual y muestra solamente el contador propio del día y su historial. La sesión general y la personal están separadas; cerrar la personal mantiene abierto el catálogo. El popup conserva el borrador al cerrarse, carga la sesión solo después de abrirse, comunica errores y resuelve conflictos de revisión. La Orden 08 quedó completada localmente el 15-09-2026: build, 59 pruebas JS, lint, 48 pgTAP, cinco ciclos concurrentes con respuesta perdida y reintento, API aislada para dos perfiles y gateway pasaron. Codex validó teclado, foco y vista móvil 390×844. CI compila antes del escaneo del bundle, documenta las variables públicas y ejecuta gateway. Falta ejecutar el workflow remoto y staging dentro de la etapa 9 antes de publicar.
 
-### 9. Validación integral en staging
+### 9. Validación integral en staging — EN PROGRESO (Órdenes 09 y 10 probadas en remoto)
 
-Ejecutar pruebas unitarias, de integración SQL/RLS y E2E de login general, login individual, aislamiento entre perfiles, fecha de medianoche, concurrencia, restablecimiento de contraseña, pérdida de red, importación y respaldo. Revisar el bundle: sin clave general, hashes, tokens ni datos privados. Verificar accesibilidad básica y navegadores principales. **Terminado cuando:** CI verde y el equipo aprueba una prueba con datos anonimizados.
+Ejecutar pruebas unitarias, de integración SQL/RLS y E2E de login general, login individual, aislamiento entre perfiles, fecha de medianoche, concurrencia, restablecimiento de contraseña, pérdida de red, importación y respaldo. Revisar el bundle: sin clave general, hashes, tokens ni datos privados. Verificar accesibilidad básica y navegadores principales. **Terminado cuando:** CI verde y el equipo aprueba una prueba con datos anonimizados. Las Órdenes 09 y 10 han sido superadas en remoto: las migraciones se aplicaron a staging, se deshabilitó el registro público en Auth, y un "smoke test" aislado comprobó con éxito logins, concurrencia, restablecimientos, baneo y aislamiento estricto RLS sin corromper el esquema.
 
 ### 10. Operación y publicación
 
