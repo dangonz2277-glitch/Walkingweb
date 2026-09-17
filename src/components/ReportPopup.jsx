@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../data/supabaseClient.js';
-import { getProfile, getTodayReport, setResolvedCount, listMyReports } from '../data/reportRepository.js';
-import { getWorkDate } from '../utils/date.js';
+import { getProfile } from '../data/reportRepository.js';
 import { normalizeUsername } from '../utils/auth.js';
-
+import { appendReportEntry, listRecentReportEntries } from '../backend/reportEntryRepository.js';
+import { loadDraft, saveDraft, clearDraft } from '../backend/reportEntryStorage.js';
+import { validateReportEntry, formatDateLaPaz, formatDateTimeLaPaz } from '../domain/reportEntry.js';
 import Modal from './Modal.jsx';
 
 export default function ReportPopup({ isOpen, onClose, triggerRef }) {
@@ -13,20 +14,35 @@ export default function ReportPopup({ isOpen, onClose, triggerRef }) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} triggerRef={triggerRef} ariaLabel="Mi Reporte">
+    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Mi Reporte" triggerRef={triggerRef}>
       {hasOpened && <ReportContent />}
     </Modal>
+  );
+}
+
+function Counter({ label, value, onChange, disabled }) {
+  const handleDec = () => onChange(Math.max(0, value - 1));
+  const handleInc = () => onChange(Math.min(9999, value + 1));
+  
+  return (
+    <div className="counter-field">
+      <label>{label}</label>
+      <div className="counter-controls">
+        <button type="button" onClick={handleDec} disabled={disabled || value <= 0}>-1</button>
+        <span className="counter-value">{value}</span>
+        <button type="button" onClick={handleInc} disabled={disabled || value >= 9999}>+1</button>
+      </div>
+    </div>
   );
 }
 
 function ReportContent() {
   const [session, setSession] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true);
-  const [loginError, setLoginError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -87,28 +103,28 @@ function ReportContent() {
     );
   }
 
-  return <ActiveReport />
+  return <ActiveReport session={session} />
 }
 
-function ActiveReport() {
+function ActiveReport({ session }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  const [workDate] = useState(getWorkDate);
-  const [count, setCount] = useState('');
-  const [revision, setRevision] = useState(0);
-  const [serverConflictCount, setServerConflictCount] = useState(null);
-  const [serverConflictRevision, setServerConflictRevision] = useState(null);
+  const [workDate] = useState(formatDateLaPaz);
+  const [calls, setCalls] = useState(0);
+  const [emails, setEmails] = useState(0);
+  const [liveChats, setLiveChats] = useState(0);
+  const [clientEntryId, setClientEntryId] = useState(() => crypto.randomUUID());
+  
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState([]);
   const [savedNotice, setSavedNotice] = useState(false);
 
   useEffect(() => {
     let active = true;
-    const today = getWorkDate();
     
-    const loadData = async (date) => {
+    const loadData = async () => {
       setLoading(true);
       setError('');
       
@@ -126,20 +142,15 @@ function ActiveReport() {
       }
       setProfile(profRes.data);
 
-      const reportRes = await getTodayReport(date);
-      if (active) {
-        if (!reportRes.success) {
-          setError(reportRes.error);
-        } else if (reportRes.data) {
-          setCount(reportRes.data.resolvedCount.toString());
-          setRevision(reportRes.data.revision);
-        } else {
-          setCount('0');
-          setRevision(0);
-        }
+      const draft = loadDraft(session.user.id);
+      if (draft) {
+        setCalls(draft.calls);
+        setEmails(draft.emails);
+        setLiveChats(draft.liveChats);
+        setClientEntryId(draft.clientEntryId);
       }
 
-      const histRes = await listMyReports();
+      const histRes = await listRecentReportEntries();
       if (active) {
         if (histRes.success) {
           setHistory(histRes.data);
@@ -150,58 +161,62 @@ function ActiveReport() {
       }
     };
     
-    loadData(today);
+    loadData();
     return () => { active = false; };
-  }, []);
+  }, [session.user.id]);
+
+  useEffect(() => {
+    if (!profile) return;
+    saveDraft(session.user.id, { calls, emails, liveChats, clientEntryId });
+  }, [calls, emails, liveChats, clientEntryId, profile, session.user.id]);
 
   const handleLogout = async () => {
     const { error: err } = await supabase.auth.signOut();
     if (err) setError(err.message);
   };
 
-  const handleSave = async (forceOverwrite = false) => {
+  const handleClear = () => {
+    setCalls(0);
+    setEmails(0);
+    setLiveChats(0);
+    setClientEntryId(crypto.randomUUID());
+    clearDraft(session.user.id);
+  };
+
+  const handleSave = async () => {
     setError('');
     setSavedNotice(false);
     
-    if (!/^\d+$/.test(count)) {
-      setError('El número de tickets resueltos debe ser un entero válido sin decimales ni letras.');
+    const valid = validateReportEntry({ calls, emails, liveChats });
+    if (valid.total === 0) {
+      setError('El total debe ser mayor que cero.');
       return;
     }
-    let numericCount = Number(count);
-    if (!Number.isInteger(numericCount) || numericCount < 0 || numericCount > 9999) {
-      setError('El número de tickets resueltos debe ser un entero entre 0 y 9999.');
-      return;
-    }
-    const newCount = numericCount;
 
     setSaving(true);
     
-    let revToUse = revision;
-    if (forceOverwrite) {
-       revToUse = serverConflictRevision;
-    }
+    const res = await appendReportEntry({
+      calls: valid.calls,
+      emails: valid.emails,
+      liveChats: valid.liveChats,
+      clientEntryId
+    });
 
-    const res = await setResolvedCount(workDate, newCount, revToUse);
     if (res.success) {
-      setRevision(res.data.revision);
-      setServerConflictCount(null);
-      setServerConflictRevision(null);
       setSavedNotice(true);
       setTimeout(() => setSavedNotice(false), 3000);
       
-      const histRes = await listMyReports();
+      setCalls(0);
+      setEmails(0);
+      setLiveChats(0);
+      setClientEntryId(crypto.randomUUID());
+      clearDraft(session.user.id);
+      
+      const histRes = await listRecentReportEntries();
       if (histRes.success) {
         setHistory(histRes.data);
       } else {
         setError(histRes.error);
-      }
-    } else if (res.conflict) {
-      const reportRes = await getTodayReport(workDate);
-      if (reportRes.success && reportRes.data) {
-        setServerConflictCount(reportRes.data.resolvedCount);
-        setServerConflictRevision(reportRes.data.revision);
-      } else {
-        setError('Conflicto detectado, pero no se pudo leer el valor remoto.');
       }
     } else {
       setError(res.error);
@@ -209,16 +224,7 @@ function ActiveReport() {
     setSaving(false);
   };
 
-  const resolveConflictOverwrite = () => {
-    handleSave(true);
-  };
-
-  const resolveConflictSync = () => {
-    setCount(serverConflictCount.toString());
-    setRevision(serverConflictRevision);
-    setServerConflictCount(null);
-    setServerConflictRevision(null);
-  };
+  const { total } = validateReportEntry({ calls, emails, liveChats });
 
   if (loading) return <h2>Cargando datos...</h2>;
 
@@ -238,34 +244,25 @@ function ActiveReport() {
         <>
           <div className="report-form">
             <p><strong>Fecha Laboral:</strong> {workDate}</p>
-            <label>
-              Tickets Resueltos (0 - 9999)
-              <input 
-                type="number" 
-                min="0" 
-                max="9999" 
-                step="1"
-                value={count} 
-                onChange={(e) => setCount(e.target.value)} 
-                disabled={saving || serverConflictCount !== null} 
-              />
-            </label>
-            {serverConflictCount === null && (
-              <button onClick={() => handleSave(false)} disabled={saving}>
+            
+            <div className="report-counters-group">
+              <Counter label="Calls" value={calls} onChange={setCalls} disabled={saving} />
+              <Counter label="Emails" value={emails} onChange={setEmails} disabled={saving} />
+              <Counter label="Live Chats" value={liveChats} onChange={setLiveChats} disabled={saving} />
+            </div>
+
+            <p className="report-total"><strong>Total:</strong> {total}</p>
+
+            <div className="report-actions">
+              <button onClick={handleSave} disabled={saving || total === 0}>
                 {saving ? 'Guardando...' : 'Guardar Reporte'}
               </button>
-            )}
+              <button onClick={handleClear} disabled={saving} className="clear-btn">
+                Limpiar
+              </button>
+            </div>
+
             {savedNotice && <div className="success-notice-block" role="status">¡Reporte guardado exitosamente!</div>}
-            
-            {serverConflictCount !== null && (
-              <div className="conflict-box">
-                <p><strong>¡Conflicto de versión!</strong> El servidor tiene un valor diferente ({serverConflictCount} tickets resueltos).</p>
-                <div className="conflict-actions">
-                  <button onClick={resolveConflictSync}>Adoptar valor remoto</button>
-                  <button onClick={resolveConflictOverwrite} className="danger">Sobrescribir con mi valor ({count})</button>
-                </div>
-              </div>
-            )}
           </div>
           
           <div className="report-history">
@@ -273,8 +270,9 @@ function ActiveReport() {
             {history.length === 0 ? <p>No hay reportes recientes.</p> : (
               <ul>
                 {history.map(h => (
-                  <li key={h.workDate}>
-                    {h.workDate}: {h.resolvedCount} tickets resueltos
+                  <li key={h.id}>
+                    <span className="hist-date">{formatDateTimeLaPaz(h.createdAt)}</span>
+                    <span className="hist-stats">C: {h.calls} | E: {h.emails} | Ch: {h.liveChats}</span>
                   </li>
                 ))}
               </ul>

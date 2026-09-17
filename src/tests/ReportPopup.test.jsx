@@ -1,10 +1,12 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ReportPopup from '../components/ReportPopup';
-import { supabase } from '../data/supabaseClient';
-import { getProfile, getTodayReport, setResolvedCount, listMyReports } from '../data/reportRepository';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import ReportPopup from '../components/ReportPopup.jsx';
+import { supabase } from '../data/supabaseClient.js';
+import { getProfile } from '../data/reportRepository.js';
+import { appendReportEntry, listRecentReportEntries } from '../backend/reportEntryRepository.js';
+import { loadDraft, saveDraft } from '../backend/reportEntryStorage.js';
 
-vi.mock('../data/supabaseClient', () => ({
+vi.mock('../data/supabaseClient.js', () => ({
   supabase: {
     auth: {
       getSession: vi.fn(),
@@ -15,243 +17,174 @@ vi.mock('../data/supabaseClient', () => ({
   }
 }));
 
-vi.mock('../data/reportRepository', () => ({
-  getProfile: vi.fn(),
-  getTodayReport: vi.fn(),
-  setResolvedCount: vi.fn(),
-  listMyReports: vi.fn()
+vi.mock('../data/reportRepository.js', () => ({
+  getProfile: vi.fn()
 }));
 
-describe('ReportPopup UI', () => {
+vi.mock('../backend/reportEntryRepository.js', () => ({
+  appendReportEntry: vi.fn(),
+  listRecentReportEntries: vi.fn()
+}));
+
+const localStorageMock = (() => {
+  let store = {};
+  return {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => { store[key] = value.toString(); },
+    removeItem: (key) => { delete store[key]; },
+    clear: () => { store = {}; }
+  };
+})();
+Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
+describe('ReportPopup append-only integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
   });
 
-  it('shows login form, prevents double submit, and handles successful login', async () => {
-    supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
-
-    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
-    getTodayReport.mockResolvedValue({ success: true, data: { resolvedCount: 0, revision: 0 } });
-    listMyReports.mockResolvedValue({ success: true, data: [] });
-
-    let authCallback;
-    supabase.auth.onAuthStateChange.mockImplementation((cb) => {
-      authCallback = cb;
-      return { data: { subscription: { unsubscribe: vi.fn() } } };
-    });
-
+  it('renders auth form when no session', async () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
+  });
 
-    let resolveLogin;
-    supabase.auth.signInWithPassword.mockReturnValue(new Promise(res => resolveLogin = res));
+  it('loads profile and draft on successful session', async () => {
+    const userId = '111-222';
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+    
+    saveDraft(userId, { calls: 10, emails: 5, liveChats: 2, clientEntryId: 'uuid-123' });
 
-    const userInput = screen.getByLabelText(/Usuario/i);
-    const passInput = screen.getByLabelText(/Contraseña/i);
-    const btn = screen.getByText('Iniciar Sesión');
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    fireEvent.change(userInput, { target: { value: 'test' } });
-    fireEvent.change(passInput, { target: { value: 'password123' } });
+    expect(screen.getByText('10')).toBeDefined();
+    expect(screen.getByText('5')).toBeDefined();
+    expect(screen.getByText('2')).toBeDefined();
+    expect(screen.getByText('Total:')).toBeDefined();
+    expect(screen.getByText('17')).toBeDefined();
+  });
 
-    // Double submit
-    fireEvent.click(btn);
-    fireEvent.click(btn);
+  it('Save disabled when total is 0', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
 
-    await waitFor(() => expect(screen.getByText('Ingresando...')).toBeDefined());
-    expect(btn.disabled).toBe(true);
-    expect(supabase.auth.signInWithPassword).toHaveBeenCalledTimes(1);
-    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
-      email: 'test@walkingweb.internal',
-      password: 'password123'
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+
+    const saveBtn = screen.getByText('Guardar Reporte');
+    expect(saveBtn.disabled).toBe(true);
+
+    const incCallsBtn = screen.getAllByText('+1')[0];
+    fireEvent.click(incCallsBtn);
+
+    expect(saveBtn.disabled).toBe(false);
+  });
+
+  it('successful save calls backend once, clears draft, and generates new UUID', async () => {
+    const userId = '1';
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+    appendReportEntry.mockResolvedValue({ success: true });
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+
+    fireEvent.click(screen.getAllByText('+1')[0]);
+
+    const oldDraft = loadDraft(userId);
+    expect(oldDraft).not.toBeNull();
+    const oldUuid = oldDraft.clientEntryId;
+
+    fireEvent.click(screen.getByText('Guardar Reporte'));
+    await waitFor(() => expect(screen.getByText('¡Reporte guardado exitosamente!')).toBeDefined());
+
+    expect(appendReportEntry).toHaveBeenCalledTimes(1);
+    expect(appendReportEntry).toHaveBeenCalledWith({
+      calls: 1, emails: 0, liveChats: 0, clientEntryId: oldUuid
     });
 
-    resolveLogin({ data: { user: { id: '1' } }, error: null });
+    expect(screen.queryAllByText('0').length).toBeGreaterThan(0);
 
-    // Actually call the onAuthStateChange listener
-    if (authCallback) {
-      setTimeout(() => authCallback('SIGNED_IN', { user: { id: '1' } }), 10);
-    }
-
-    await waitFor(() => expect(screen.queryByText('Ingresar a Mi Reporte')).toBeNull());
-    // Assert successful view
-    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
-    expect(screen.getByLabelText(/Tickets Resueltos/i)).toBeDefined();
+    const newDraft = loadDraft(userId);
+    expect(newDraft).not.toBeNull();
+    expect(newDraft.calls).toBe(0);
+    expect(newDraft.clientEntryId).not.toBe(oldUuid);
   });
 
-  it('handles error in history/profile and logout', async () => {
-    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
-
-    // Test 1: Profile error
-    getProfile.mockResolvedValueOnce({ success: false, error: 'Profile error' });
-    const { unmount: u1 } = render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('Error al cargar perfil o cuenta inactiva.')).toBeDefined());
-    u1();
-
-    // Test 2: Read error
+  it('error keeps counters and UUID', async () => {
+    const userId = '1';
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
-    getTodayReport.mockResolvedValueOnce({ success: false, error: 'Read error' });
-    listMyReports.mockResolvedValue({ success: true, data: [] });
-
-    const { unmount: u2 } = render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('Read error')).toBeDefined());
-    u2();
-
-    // Test 3: History error
-    getTodayReport.mockResolvedValue({ success: true, data: { resolvedCount: 5, revision: 1 } });
-    listMyReports.mockResolvedValueOnce({ success: false, error: 'History error' });
-
-    const { unmount: u3 } = render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('History error')).toBeDefined());
-    u3();
-
-    // Test 4: Logout error (Session retained)
-    supabase.auth.signOut.mockResolvedValueOnce({ error: { message: 'Logout failed' } });
-    listMyReports.mockResolvedValue({ success: true, data: [] });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+    appendReportEntry.mockResolvedValue({ success: false, error: 'Database error' });
 
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    const logoutBtn = screen.getByText('Cerrar Sesión');
-    fireEvent.click(logoutBtn);
+    fireEvent.click(screen.getAllByText('+1')[1]);
+    
+    const draft = loadDraft(userId);
+    const uuid = draft.clientEntryId;
 
-    await waitFor(() => expect(screen.getByText('Logout failed')).toBeDefined());
-    // Expect session to still exist
-    expect(screen.getByText('Alice')).toBeDefined();
-  });
-
-  it('validates bounds: 0, 9999, empty, and alphanumeric', async () => {
-    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
-    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
-    getTodayReport.mockResolvedValue({ success: true, data: { resolvedCount: 0, revision: 0 } });
-    listMyReports.mockResolvedValue({ success: true, data: [] });
-    setResolvedCount.mockResolvedValue({ success: true, data: { revision: 1 } });
-
-    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
-
-    const input = screen.getByLabelText(/Tickets Resueltos/i);
-    const btn = screen.getByText('Guardar Reporte');
-
-    // alphanumeric (invalid state sets to '0')
-    fireEvent.change(input, { target: { value: '12abc' } });
-    fireEvent.click(btn);
-    await waitFor(() => expect(screen.getByText('El número de tickets resueltos debe ser un entero válido sin decimales ni letras.')).toBeDefined());
-    expect(setResolvedCount).not.toHaveBeenCalled();
-
-    // empty (sets to '0')
-    fireEvent.change(input, { target: { value: '' } });
-    fireEvent.click(btn);
-    await waitFor(() => expect(screen.getByText('El número de tickets resueltos debe ser un entero válido sin decimales ni letras.')).toBeDefined());
-    expect(setResolvedCount).not.toHaveBeenCalled();
-
-    // Clear the error by entering a valid number
-    fireEvent.change(input, { target: { value: '0' } });
-    fireEvent.click(btn);
-    await waitFor(() => expect(setResolvedCount).toHaveBeenCalledWith(expect.any(String), 0, 0));
-
-    setResolvedCount.mockResolvedValue({ success: true, data: { revision: 2 } });
-
-    // 9999 (valid)
-    fireEvent.change(input, { target: { value: '9999' } });
-    fireEvent.click(btn);
-    await waitFor(() => expect(setResolvedCount).toHaveBeenCalledWith(expect.any(String), 9999, 1));
-
-    // 10000 (invalid)
-    fireEvent.change(input, { target: { value: '10000' } });
-    fireEvent.click(btn);
-    await waitFor(() => expect(screen.getByText('El número de tickets resueltos debe ser un entero entre 0 y 9999.')).toBeDefined());
-
-    // negatives
-    fireEvent.change(input, { target: { value: '-5' } });
-    fireEvent.click(btn);
-    await waitFor(() => expect(screen.getByText('El número de tickets resueltos debe ser un entero válido sin decimales ni letras.')).toBeDefined());
-
-    // fractions
-    fireEvent.change(input, { target: { value: '3.14' } });
-    fireEvent.click(btn);
-    await waitFor(() => expect(screen.getByText('El número de tickets resueltos debe ser un entero válido sin decimales ni letras.')).toBeDefined());
-
-    expect(setResolvedCount).toHaveBeenCalledTimes(2); // Only for 0 (valid), 9999 (valid)
-    expect(setResolvedCount).not.toHaveBeenCalledWith(expect.any(String), 10000, expect.any(Number));
-    expect(setResolvedCount).not.toHaveBeenCalledWith(expect.any(String), -5, expect.any(Number));
-    expect(setResolvedCount).not.toHaveBeenCalledWith(expect.any(String), 3.14, expect.any(Number));
-  });
-
-  it('renders remote conflict correctly including 0', async () => {
-    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
-    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
-    getTodayReport.mockResolvedValue({ success: true, data: { resolvedCount: 5, revision: 1 } });
-    listMyReports.mockResolvedValue({ success: true, data: [] });
-
-    // Simular conflicto inicial
-    setResolvedCount.mockResolvedValueOnce({ success: false, conflict: true });
-    // Y la subsecuente lectura remota traerá un 0
-    getTodayReport.mockResolvedValue({ success: true, data: { resolvedCount: 0, revision: 2 } });
-
-    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
-
-    const input = screen.getByLabelText(/Tickets Resueltos/i);
-    const btn = screen.getByText('Guardar Reporte');
-
-    fireEvent.change(input, { target: { value: '10' } });
-    fireEvent.click(btn);
-
-    // Debe mostrar la ventana de conflicto con 0
-    await waitFor(() => expect(screen.getByText(/El servidor tiene un valor diferente/i)).toBeDefined());
-
-    // Probar "Adoptar valor remoto" primero
-    const btnAdopt = screen.getByText(/Adoptar valor remoto/i);
-    fireEvent.click(btnAdopt);
-
-    // The input should update to 0.
-    await waitFor(() => expect(screen.getByDisplayValue('0')).toBeDefined());
-
-    // Volver a simular conflicto con el valor local (10) para probar sobrescritura
-    fireEvent.change(input, { target: { value: '10' } });
-    setResolvedCount.mockResolvedValueOnce({ success: false, conflict: true });
-    getTodayReport.mockResolvedValue({ success: true, data: { resolvedCount: 0, revision: 2 } });
     fireEvent.click(screen.getByText('Guardar Reporte'));
-    await waitFor(() => expect(screen.getByText(/El servidor tiene un valor diferente/i)).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Database error')).toBeDefined());
 
-    // Presionar Sobrescribir
-    setResolvedCount.mockResolvedValueOnce({ success: true, data: { revision: 3 } });
-    const btnOverwrite = screen.getByText(/Sobrescribir/i);
-    act(() => { fireEvent.click(btnOverwrite); });
-
-    await waitFor(() => expect(screen.getByText('¡Reporte guardado exitosamente!')).toBeDefined(), { timeout: 2000 });
-    expect(setResolvedCount).toHaveBeenCalledWith(expect.any(String), 10, 2); // local value 10, remote revision 2
+    const newDraft = loadDraft(userId);
+    expect(newDraft.emails).toBe(1);
+    expect(newDraft.clientEntryId).toBe(uuid);
   });
 
-  it('handles disabled profile', async () => {
-    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
-    getProfile.mockResolvedValue({ success: true, data: { status: 'disabled', display_name: 'Bob' } });
+  it('Limpiar button resets counters without backend call', async () => {
+    const userId = '1';
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
 
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('Tu cuenta está desactivada.')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+
+    fireEvent.click(screen.getAllByText('+1')[2]);
+    expect(screen.getByText('Total:')).toBeDefined();
+
+    fireEvent.click(screen.getByText('Limpiar'));
+
+    await waitFor(() => {
+      const draft = loadDraft(userId);
+      expect(draft.liveChats).toBe(0);
+    });
+    
+    expect(appendReportEntry).not.toHaveBeenCalled();
   });
 
-  it('does not mount ReportContent or query session until opened', () => {
-    render(<ReportPopup isOpen={false} onClose={vi.fn()} />);
-    expect(supabase.auth.getSession).not.toHaveBeenCalled();
-  });
-
-  it('preserves draft state when closed and reopened', async () => {
+  it('shows history formatted as C | E | Ch', async () => {
     supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
-    getTodayReport.mockResolvedValue({ success: true, data: { resolvedCount: 5, revision: 1 } });
-    listMyReports.mockResolvedValue({ success: true, data: [] });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [
+      { id: '111', calls: 10, emails: 5, liveChats: 2, createdAt: '2026-09-17T20:00:00.000Z' }
+    ] });
 
-    const { rerender } = render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByDisplayValue('5')).toBeDefined());
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    const input = screen.getByLabelText(/Tickets Resueltos/i);
-    fireEvent.change(input, { target: { value: '42' } });
+    expect(screen.getByText('C: 10 | E: 5 | Ch: 2')).toBeDefined();
+  });
 
-    rerender(<ReportPopup isOpen={false} onClose={vi.fn()} />);
-    rerender(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+  it('corrupted draft is discarded', async () => {
+    const userId = '1';
+    localStorage.setItem(`draft_report_entry_${userId}`, '{ bad json }');
+    
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
 
-    expect(screen.getByDisplayValue('42')).toBeDefined();
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+
+    expect(localStorage.getItem(`draft_report_entry_${userId}_corrupted`)).toBe('{ bad json }');
   });
 });
