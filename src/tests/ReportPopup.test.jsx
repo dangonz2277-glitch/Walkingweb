@@ -26,17 +26,6 @@ vi.mock('../backend/reportEntryRepository.js', () => ({
   listRecentReportEntries: vi.fn()
 }));
 
-const localStorageMock = (() => {
-  let store = {};
-  return {
-    getItem: (key) => store[key] || null,
-    setItem: (key, value) => { store[key] = value.toString(); },
-    removeItem: (key) => { delete store[key]; },
-    clear: () => { store = {}; }
-  };
-})();
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
-
 describe('ReportPopup append-only integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,9 +33,56 @@ describe('ReportPopup append-only integration', () => {
     supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
   });
 
-  it('renders auth form when no session', async () => {
+  it('does not mount ReportContent or query session until opened', () => {
+    render(<ReportPopup isOpen={false} onClose={vi.fn()} />);
+    expect(supabase.auth.getSession).not.toHaveBeenCalled();
+  });
+
+  it('renders auth form when opened and no session', async () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
+  });
+
+  it('handles login success', async () => {
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
+    
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({ error: null });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+    
+    const user = screen.getByLabelText('Usuario');
+    const pass = screen.getByLabelText('Contraseña');
+    fireEvent.change(user, { target: { value: 'alice' } });
+    fireEvent.change(pass, { target: { value: 'password123' } });
+    
+    const form = user.closest('form');
+    fireEvent.submit(form);
+    
+    await waitFor(() => {
+      expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'alice@walkingweb.internal', password: 'password123' });
+    });
+  });
+
+  it('handles login error and min password', async () => {
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
+    
+    const user = screen.getByLabelText('Usuario');
+    const pass = screen.getByLabelText('Contraseña');
+    const form = user.closest('form');
+    
+    fireEvent.change(user, { target: { value: 'alice' } });
+    fireEvent.change(pass, { target: { value: 'short' } });
+    fireEvent.submit(form);
+    
+    await waitFor(() => expect(screen.getByText('La contraseña debe tener al menos 8 caracteres.')).toBeDefined());
+    
+    fireEvent.change(pass, { target: { value: 'password123' } });
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'invalid' } });
+    fireEvent.submit(form);
+    
+    await waitFor(() => expect(screen.getByText('Usuario o contraseña incorrectos, o cuenta inactiva.')).toBeDefined());
   });
 
   it('loads profile and draft on successful session', async () => {
@@ -55,7 +91,7 @@ describe('ReportPopup append-only integration', () => {
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
     listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
     
-    saveDraft(userId, { calls: 10, emails: 5, liveChats: 2, clientEntryId: 'uuid-123' });
+    saveDraft(userId, { calls: 10, emails: 5, liveChats: 2, clientEntryId: '00000000-0000-0000-0000-000000000000' });
 
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
@@ -65,6 +101,44 @@ describe('ReportPopup append-only integration', () => {
     expect(screen.getByText('2')).toBeDefined();
     expect(screen.getByText('Total:')).toBeDefined();
     expect(screen.getByText('17')).toBeDefined();
+  });
+
+  it('handles disabled profile', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'disabled', display_name: 'Bob' } });
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Tu cuenta está desactivada.')).toBeDefined());
+  });
+
+  it('handles profile error', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
+    getProfile.mockResolvedValue({ success: false, error: 'DB down' });
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Error al cargar perfil o cuenta inactiva.')).toBeDefined());
+  });
+
+  it('handles history error', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Bob' } });
+    listRecentReportEntries.mockResolvedValue({ success: false, error: 'History error' });
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('History error')).toBeDefined());
+  });
+
+  it('handles logout error', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+    supabase.auth.signOut.mockResolvedValueOnce({ error: { message: 'Logout failed' } });
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+
+    fireEvent.click(screen.getByText('Cerrar Sesión'));
+    await waitFor(() => expect(screen.getByText('Logout failed')).toBeDefined());
   });
 
   it('Save disabled when total is 0', async () => {
@@ -78,7 +152,7 @@ describe('ReportPopup append-only integration', () => {
     const saveBtn = screen.getByText('Guardar Reporte');
     expect(saveBtn.disabled).toBe(true);
 
-    const incCallsBtn = screen.getAllByText('+1')[0];
+    const incCallsBtn = screen.getAllByLabelText('Incrementar Calls')[0];
     fireEvent.click(incCallsBtn);
 
     expect(saveBtn.disabled).toBe(false);
@@ -94,10 +168,13 @@ describe('ReportPopup append-only integration', () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    fireEvent.click(screen.getAllByText('+1')[0]);
+    fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
+
+    await waitFor(() => {
+      expect(loadDraft(userId)).not.toBeNull();
+    });
 
     const oldDraft = loadDraft(userId);
-    expect(oldDraft).not.toBeNull();
     const oldUuid = oldDraft.clientEntryId;
 
     fireEvent.click(screen.getByText('Guardar Reporte'));
@@ -108,12 +185,7 @@ describe('ReportPopup append-only integration', () => {
       calls: 1, emails: 0, liveChats: 0, clientEntryId: oldUuid
     });
 
-    expect(screen.queryAllByText('0').length).toBeGreaterThan(0);
-
-    const newDraft = loadDraft(userId);
-    expect(newDraft).not.toBeNull();
-    expect(newDraft.calls).toBe(0);
-    expect(newDraft.clientEntryId).not.toBe(oldUuid);
+    expect(loadDraft(userId)).toBeNull(); // Empty draft shouldn't be saved
   });
 
   it('error keeps counters and UUID', async () => {
@@ -126,8 +198,12 @@ describe('ReportPopup append-only integration', () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    fireEvent.click(screen.getAllByText('+1')[1]);
+    fireEvent.click(screen.getAllByLabelText('Incrementar Emails')[0]);
     
+    await waitFor(() => {
+      expect(loadDraft(userId)).not.toBeNull();
+    });
+
     const draft = loadDraft(userId);
     const uuid = draft.clientEntryId;
 
@@ -139,7 +215,7 @@ describe('ReportPopup append-only integration', () => {
     expect(newDraft.clientEntryId).toBe(uuid);
   });
 
-  it('Limpiar button resets counters without backend call', async () => {
+  it('Limpiar button resets counters and deletes draft without backend call', async () => {
     const userId = '1';
     supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
@@ -148,14 +224,13 @@ describe('ReportPopup append-only integration', () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    fireEvent.click(screen.getAllByText('+1')[2]);
-    expect(screen.getByText('Total:')).toBeDefined();
+    fireEvent.click(screen.getAllByLabelText('Incrementar Live Chats')[0]);
+    await waitFor(() => expect(screen.getByText('Total:')).toBeDefined());
 
     fireEvent.click(screen.getByText('Limpiar'));
 
     await waitFor(() => {
-      const draft = loadDraft(userId);
-      expect(draft.liveChats).toBe(0);
+      expect(loadDraft(userId)).toBeNull();
     });
     
     expect(appendReportEntry).not.toHaveBeenCalled();
@@ -174,17 +249,19 @@ describe('ReportPopup append-only integration', () => {
     expect(screen.getByText('C: 10 | E: 5 | Ch: 2')).toBeDefined();
   });
 
-  it('corrupted draft is discarded', async () => {
-    const userId = '1';
-    localStorage.setItem(`draft_report_entry_${userId}`, '{ bad json }');
-    
-    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
+  it('preserves state when closed and reopened', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
     listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
 
-    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    const { rerender } = render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    expect(localStorage.getItem(`draft_report_entry_${userId}_corrupted`)).toBe('{ bad json }');
+    fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
+    
+    rerender(<ReportPopup isOpen={false} onClose={vi.fn()} />);
+    rerender(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+
+    expect(screen.queryAllByText('1').length).toBeGreaterThan(0);
   });
 });

@@ -28,9 +28,9 @@ function Counter({ label, value, onChange, disabled }) {
     <div className="counter-field">
       <label>{label}</label>
       <div className="counter-controls">
-        <button type="button" onClick={handleDec} disabled={disabled || value <= 0}>-1</button>
+        <button type="button" aria-label={`Reducir ${label}`} onClick={handleDec} disabled={disabled || value <= 0}>-1</button>
         <span className="counter-value">{value}</span>
-        <button type="button" onClick={handleInc} disabled={disabled || value >= 9999}>+1</button>
+        <button type="button" aria-label={`Incrementar ${label}`} onClick={handleInc} disabled={disabled || value >= 9999}>+1</button>
       </div>
     </div>
   );
@@ -110,8 +110,8 @@ function ActiveReport({ session }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [storageWarning, setStorageWarning] = useState('');
   
-  const [workDate] = useState(formatDateLaPaz);
   const [calls, setCalls] = useState(0);
   const [emails, setEmails] = useState(0);
   const [liveChats, setLiveChats] = useState(0);
@@ -167,7 +167,12 @@ function ActiveReport({ session }) {
 
   useEffect(() => {
     if (!profile) return;
-    saveDraft(session.user.id, { calls, emails, liveChats, clientEntryId });
+    const res = saveDraft(session.user.id, { calls, emails, liveChats, clientEntryId });
+    if (res && !res.success) {
+      setTimeout(() => setStorageWarning(res.error), 0);
+    } else {
+      setTimeout(() => setStorageWarning(''), 0);
+    }
   }, [calls, emails, liveChats, clientEntryId, profile, session.user.id]);
 
   const handleLogout = async () => {
@@ -180,15 +185,24 @@ function ActiveReport({ session }) {
     setEmails(0);
     setLiveChats(0);
     setClientEntryId(crypto.randomUUID());
-    clearDraft(session.user.id);
+    const res = clearDraft(session.user.id);
+    if (res && !res.success) {
+      setTimeout(() => setStorageWarning(res.error), 0);
+    } else {
+      setTimeout(() => setStorageWarning(''), 0);
+    }
   };
 
   const handleSave = async () => {
     setError('');
     setSavedNotice(false);
     
-    const valid = validateReportEntry({ calls, emails, liveChats });
-    if (valid.total === 0) {
+    const val = validateReportEntry({ calls, emails, liveChats });
+    if (!val.valid) {
+      setError(val.error);
+      return;
+    }
+    if (val.data.total === 0) {
       setError('El total debe ser mayor que cero.');
       return;
     }
@@ -196,9 +210,9 @@ function ActiveReport({ session }) {
     setSaving(true);
     
     const res = await appendReportEntry({
-      calls: valid.calls,
-      emails: valid.emails,
-      liveChats: valid.liveChats,
+      calls: val.data.calls,
+      emails: val.data.emails,
+      liveChats: val.data.liveChats,
       clientEntryId
     });
 
@@ -210,7 +224,12 @@ function ActiveReport({ session }) {
       setEmails(0);
       setLiveChats(0);
       setClientEntryId(crypto.randomUUID());
-      clearDraft(session.user.id);
+      const clrRes = clearDraft(session.user.id);
+      if (clrRes && !clrRes.success) {
+        setStorageWarning(clrRes.error);
+      } else {
+        setTimeout(() => setStorageWarning(''), 0);
+      }
       
       const histRes = await listRecentReportEntries();
       if (histRes.success) {
@@ -224,7 +243,9 @@ function ActiveReport({ session }) {
     setSaving(false);
   };
 
-  const { total } = validateReportEntry({ calls, emails, liveChats });
+  const val = validateReportEntry({ calls, emails, liveChats });
+  const displayTotal = val.valid ? val.data.total : 0;
+  const isTotalZero = displayTotal === 0;
 
   if (loading) return <h2>Cargando datos...</h2>;
 
@@ -239,11 +260,12 @@ function ActiveReport({ session }) {
       </header>
       
       {error && <p className="error-alert" role="alert">{error}</p>}
+      {storageWarning && <p className="warning-alert" role="alert">{storageWarning}</p>}
       
       {profile?.status === 'active' && (
         <>
           <div className="report-form">
-            <p><strong>Fecha Laboral:</strong> {workDate}</p>
+            <p><strong>Fecha Laboral:</strong> {formatDateLaPaz()}</p>
             
             <div className="report-counters-group">
               <Counter label="Calls" value={calls} onChange={setCalls} disabled={saving} />
@@ -251,10 +273,10 @@ function ActiveReport({ session }) {
               <Counter label="Live Chats" value={liveChats} onChange={setLiveChats} disabled={saving} />
             </div>
 
-            <p className="report-total"><strong>Total:</strong> {total}</p>
+            <p className="report-total"><strong>Total:</strong> {displayTotal}</p>
 
             <div className="report-actions">
-              <button onClick={handleSave} disabled={saving || total === 0}>
+              <button onClick={handleSave} disabled={saving || isTotalZero || !val.valid}>
                 {saving ? 'Guardando...' : 'Guardar Reporte'}
               </button>
               <button onClick={handleClear} disabled={saving} className="clear-btn">

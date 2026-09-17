@@ -1,15 +1,19 @@
 export function validateReportEntry({ calls, emails, liveChats }) {
-  const clamp = (val) => {
-    const num = Math.floor(Number(val) || 0);
-    return Math.max(0, Math.min(9999, num));
+  const isValidInt = (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 9999;
+  
+  if (!isValidInt(calls) || !isValidInt(emails) || !isValidInt(liveChats)) {
+    return { valid: false, error: 'Los valores deben ser números enteros entre 0 y 9999.' };
+  }
+  
+  return {
+    valid: true,
+    data: {
+      calls,
+      emails,
+      liveChats,
+      total: calls + emails + liveChats
+    }
   };
-  
-  const c = clamp(calls);
-  const e = clamp(emails);
-  const l = clamp(liveChats);
-  const total = c + e + l;
-  
-  return { calls: c, emails: e, liveChats: l, total };
 }
 
 export function normalizeReportEntryData(dbRow) {
