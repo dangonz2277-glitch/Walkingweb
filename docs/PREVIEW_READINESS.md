@@ -75,4 +75,12 @@ Las siguientes migraciones ya fueron empujadas previamente al proyecto real aloj
 - **Gestión Administrativa Directa**: La reactivación de perfiles elimina administrativamente el ban en Auth y cambia directamente `profiles.status` a `active`. El restablecimiento de cuenta asigna directamente una nueva contraseña (que se introduce de forma oculta). No se generan ni se entregan enlaces de recuperación, tokens, ni correos.
 - **Bordes de Middleware Edge**: La firma nativa de cookies está comprobada en Node; de surgir diferencias criptográficas en Vercel Edge Runtime, se revisará durante la evaluación en Preview.
 
-**El repositorio está documentado, preparado localmente para el primer push y listo para su correspondiente validación de CI.**
+## Resultados del Despliegue en Vercel (Orden 15)
+- **Acceso General**: Aprobado.
+- **Catálogo**: 42 productos renderizados y verificados exitosamente.
+- **Mi Reporte**: Validado correctamente en 3 dispositivos distintos.
+- **Smoke Test Alojado**: Aprobado. La limpieza automática operó según el contrato y se confirmó la ausencia de residuos.
+- **Perfiles Actuales**: El único perfil restante activo en la base de datos es el perfil administrado de Daniel.
+- **Incidencia `request.ip`**: Durante el primer despliegue se descubrió que el runtime de Next.js en Vercel no expone `request.ip`. Como solución temporal se habilitó `TRUST_FORWARDED_IP=1`. La **solución definitiva** ha sido implementada: cuando se detecta el entorno Vercel (`VERCEL=1`), el sistema prioriza incondicionalmente la cabecera `x-vercel-forwarded-for` garantizada por la infraestructura, cayendo a `x-forwarded-for` como respaldo, blindando así el Rate Limit contra suplantaciones.
+
+**El backend se encuentra estabilizado, asegurado y cerrado.**
