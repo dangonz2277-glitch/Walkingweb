@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 export function resolveClientIp(request, env) {
   // En Next.js Request (basado en Fetch API), headers.get() devuelve null si no existe.
   const getHeader = (name) => request.headers.get(name) || '';
@@ -27,9 +29,14 @@ export function resolveClientIp(request, env) {
   
   const ip = ips[0];
   
-  // Limitar longitud para prevenir inyecciones enormes en DB
-  if (ip.length > 50) {
-    return ip.substring(0, 50);
+  // Rechazar valores mayores a 45 caracteres (longitud máxima razonable para IPv6 mapeada)
+  if (ip.length > 45) {
+    return null;
+  }
+  
+  // Rechazar cualquier valor que no sea estrictamente IPv4 o IPv6
+  if (isIP(ip) === 0) {
+    return null;
   }
   
   return ip;

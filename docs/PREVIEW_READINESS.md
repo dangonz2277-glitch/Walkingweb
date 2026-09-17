@@ -83,4 +83,4 @@ Las siguientes migraciones ya fueron empujadas previamente al proyecto real aloj
 - **Perfiles Actuales**: El único perfil restante activo en la base de datos es el perfil administrado de Daniel.
 - **Incidencia `request.ip`**: Durante el primer despliegue se descubrió que el runtime de Next.js en Vercel no expone `request.ip`. Como solución temporal se habilitó `TRUST_FORWARDED_IP=1`. La **solución definitiva** ha sido implementada: cuando se detecta el entorno Vercel (`VERCEL=1`), el sistema prioriza incondicionalmente la cabecera `x-vercel-forwarded-for` garantizada por la infraestructura, cayendo a `x-forwarded-for` como respaldo, blindando así el Rate Limit contra suplantaciones.
 
-**El backend se encuentra estabilizado, asegurado y cerrado.**
+**Candidato a cierre, pendiente de CI y validación del redeploy con la resolución nativa de Vercel**

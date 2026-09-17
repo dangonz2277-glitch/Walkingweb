@@ -62,7 +62,7 @@ describe('resolveClientIp', () => {
     expect(resolveClientIp(req, {})).toBeNull();
   });
 
-  it('Normaliza listas separadas por comas', () => {
+  it('Normaliza listas separadas por comas y valida', () => {
     const req = createReq(null, {
       'x-vercel-forwarded-for': ' 1.1.1.1 , 2.2.2.2'
     });
@@ -76,12 +76,25 @@ describe('resolveClientIp', () => {
     expect(resolveClientIp(req, { TRUST_FORWARDED_IP: '1' })).toBe('3.3.3.3');
   });
 
-  it('Limita la longitud aceptada a 50 caracteres', () => {
-    const hugeIp = 'a'.repeat(100);
+  it('Rechaza entrada sobredimensionada (> 45 caracteres)', () => {
+    const hugeIp = '2001:0db8:85a3:0000:0000:8a2e:0370:7334:1234567890';
     const req = createReq(hugeIp, {});
-    const resolved = resolveClientIp(req, {});
-    expect(resolved.length).toBe(50);
-    expect(resolved).toBe('a'.repeat(50));
+    expect(resolveClientIp(req, {})).toBeNull();
+  });
+
+  it('Rechaza texto arbitrario (no es IP)', () => {
+    const req = createReq('not-an-ip-address', {});
+    expect(resolveClientIp(req, {})).toBeNull();
+  });
+
+  it('Permite IPv4 válida', () => {
+    const req = createReq('192.168.1.1', {});
+    expect(resolveClientIp(req, {})).toBe('192.168.1.1');
+  });
+
+  it('Permite IPv6 válida', () => {
+    const req = createReq('2001:0db8:85a3:0000:0000:8a2e:0370:7334', {});
+    expect(resolveClientIp(req, {})).toBe('2001:0db8:85a3:0000:0000:8a2e:0370:7334');
   });
 
 });
