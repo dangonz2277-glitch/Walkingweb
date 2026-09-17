@@ -87,32 +87,36 @@ export function checkAdminGuard(env) {
   return { url: rawUrl, key: secKey };
 }
 
-async function resolveUserByUsername(adminClient, username) {
-  const emailToFind = normalizeUsername(username);
+export function formatUsername(email) {
+  if (!email) return 'desconocido';
+  return email.replace('@walkingweb.internal', '');
+}
+
+export async function getAllAuthUsers(adminClient) {
+  let allUsers = [];
   let page = 1;
   const perPage = 100;
-  let match = null;
-
   while (true) {
     const { data: usersData, error } = await adminClient.auth.admin.listUsers({ page, perPage });
     if (error) throw new Error(`Failed to list auth users: ${error.message}`);
-
     const users = usersData.users;
     if (!users || users.length === 0) break;
-
-    const pageMatches = users.filter(u => u.email === emailToFind);
-    if (pageMatches.length > 1) throw new Error(`Ambigüedad: se encontraron múltiples usuarios con email exacto ${emailToFind}`);
-    if (pageMatches.length === 1) {
-      if (match) throw new Error(`Ambigüedad: se encontraron múltiples usuarios con email exacto ${emailToFind} a lo largo de las páginas`);
-      match = pageMatches[0];
-    }
-
+    allUsers = allUsers.concat(users);
     if (users.length < perPage) break;
     page++;
   }
+  return allUsers;
+}
 
-  if (!match) throw new Error(`No se encontró ningún usuario con el username (email normalizado) exacto: ${emailToFind}`);
-  return match.id;
+export async function resolveUserByUsername(adminClient, username) {
+  const emailToFind = normalizeUsername(username);
+  const allUsers = await getAllAuthUsers(adminClient);
+
+  const matches = allUsers.filter(u => u.email === emailToFind);
+  if (matches.length > 1) throw new Error(`Ambigüedad: se encontraron múltiples usuarios con email exacto ${emailToFind}`);
+  if (matches.length === 0) throw new Error(`No se encontró ningún usuario con el username (email normalizado) exacto: ${emailToFind}`);
+
+  return matches[0].id;
 }
 
 export async function createCommand(adminClient, io) {
@@ -135,11 +139,11 @@ export async function createCommand(adminClient, io) {
   }
 
   const normalized = normalizeUsername(username);
-  const confirm = await io.ask(`\nSe creará el usuario:\nUsername: ${normalized}\nDisplay Name: ${displayName}\n¿Continuar? (y/N): `);
+  const confirm = await io.ask(`\nSe creará el perfil de reporte para:\nUsername: ${formatUsername(normalized)}\nDisplay Name: ${displayName}\n¿Continuar? (y/N): `);
 
   if (confirm.toLowerCase() === 'y') {
     await createManagedUser(adminClient, username, password, displayName);
-    io.write('Usuario creado satisfactoriamente.\n');
+    io.write('Perfil creado satisfactoriamente.\n');
   } else {
     io.write('Operación cancelada.\n');
   }
@@ -150,27 +154,16 @@ export async function listCommand(adminClient, io) {
   const { data: profiles, error } = await adminClient.from('profiles').select('display_name, status, user_id');
   if (error) throw new Error(`Falló la consulta de profiles: ${error.message}`);
 
-  // Also get emails to show usernames
-  let allUsers = [];
-  let page = 1;
-  const perPage = 100;
-  while (true) {
-    const { data: usersData, error: listErr } = await adminClient.auth.admin.listUsers({ page, perPage });
-    if (listErr) throw new Error(`Failed to list auth users: ${listErr.message}`);
-    const users = usersData.users;
-    if (!users || users.length === 0) break;
-    allUsers = allUsers.concat(users);
-    if (users.length < perPage) break;
-    page++;
-  }
-
+  const allUsers = await getAllAuthUsers(adminClient);
   const emailMap = {};
   allUsers.forEach(u => emailMap[u.id] = u.email);
 
   io.write(`\nSe encontraron ${profiles.length} perfiles:\n`);
   profiles.forEach(p => {
-    const email = emailMap[p.user_id] || 'Desconocido';
-    io.write(`- [${p.status.toUpperCase()}] ${email} ("${p.display_name}")\n`);
+    const rawEmail = emailMap[p.user_id] || 'desconocido';
+    const presentationName = formatUsername(rawEmail);
+    // ONLY show username, display_name, status. NO UUID.
+    io.write(`- [${p.status.toUpperCase()}] ${presentationName} ("${p.display_name}")\n`);
   });
   io.write('\n');
 }
@@ -178,10 +171,10 @@ export async function listCommand(adminClient, io) {
 export async function disableCommand(adminClient, io) {
   const username = await io.ask('Username exacto a desactivar: ');
   const userId = await resolveUserByUsername(adminClient, username);
-  const confirm = await io.ask(`¿Desactivar usuario ${normalizeUsername(username)}? (y/N): `);
+  const confirm = await io.ask(`¿Desactivar perfil de ${formatUsername(normalizeUsername(username))}? (y/N): `);
   if (confirm.toLowerCase() === 'y') {
     await disableManagedUser(adminClient, userId);
-    io.write('Usuario desactivado de forma segura.\n');
+    io.write('Perfil desactivado de forma segura.\n');
   } else {
     io.write('Operación cancelada.\n');
   }
@@ -190,10 +183,10 @@ export async function disableCommand(adminClient, io) {
 export async function reactivateCommand(adminClient, io) {
   const username = await io.ask('Username exacto a reactivar: ');
   const userId = await resolveUserByUsername(adminClient, username);
-  const confirm = await io.ask(`¿Reactivar usuario ${normalizeUsername(username)}? (y/N): `);
+  const confirm = await io.ask(`¿Reactivar perfil de ${formatUsername(normalizeUsername(username))}? (y/N): `);
   if (confirm.toLowerCase() === 'y') {
     await reactivateManagedUser(adminClient, userId);
-    io.write('Usuario reactivado de forma segura.\n');
+    io.write('Perfil reactivado de forma segura.\n');
   } else {
     io.write('Operación cancelada.\n');
   }
@@ -213,7 +206,7 @@ export async function resetCommand(adminClient, io) {
     throw new Error('Las contraseñas no coinciden.');
   }
 
-  const confirm = await io.ask(`\n¿Restablecer contraseña para ${normalizeUsername(username)}? (y/N): `);
+  const confirm = await io.ask(`\n¿Restablecer contraseña para ${formatUsername(normalizeUsername(username))}? (y/N): `);
 
   if (confirm.toLowerCase() === 'y') {
     await resetManagedUserPassword(adminClient, userId, password);

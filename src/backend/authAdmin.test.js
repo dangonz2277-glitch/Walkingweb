@@ -74,4 +74,34 @@ describe('authAdmin.js compensations and limits', () => {
     await expect(disableManagedUser(adminClient, '00000000-0000-0000-0000-000000001234'))
       .rejects.toThrow(/CRÍTICO.*para el usuario \.\.\.1234.*Compensación: Unban crashed/);
   });
+
+  it('disableManagedUser reverts ban if profile count === 0', async () => {
+    const adminClient = getMockAdminClient();
+    adminClient.auth.admin.updateUserById.mockResolvedValue({ error: null });
+
+    // profile update succeeds but updates 0 rows
+    const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null, count: 0 }) });
+    adminClient.from.mockReturnValue({ update: mockUpdate });
+
+    await expect(disableManagedUser(adminClient, 'uuid-1234'))
+      .rejects.toThrow(/ban revertido de forma segura: Ningún perfil actualizado/);
+
+    expect(adminClient.auth.admin.updateUserById).toHaveBeenCalledTimes(2);
+    expect(adminClient.auth.admin.updateUserById).toHaveBeenLastCalledWith('uuid-1234', { ban_duration: 'none' });
+  });
+
+  it('reactivateManagedUser reapplies ban if profile count === 0', async () => {
+    const adminClient = getMockAdminClient();
+    adminClient.auth.admin.updateUserById.mockResolvedValue({ error: null });
+
+    // profile update succeeds but updates 0 rows
+    const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null, count: 0 }) });
+    adminClient.from.mockReturnValue({ update: mockUpdate });
+
+    await expect(reactivateManagedUser(adminClient, 'uuid-1234'))
+      .rejects.toThrow(/ban re-aplicado de forma segura: Ningún perfil actualizado/);
+
+    expect(adminClient.auth.admin.updateUserById).toHaveBeenCalledTimes(2);
+    expect(adminClient.auth.admin.updateUserById).toHaveBeenLastCalledWith('uuid-1234', { ban_duration: '876600h' });
+  });
 });

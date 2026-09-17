@@ -11,7 +11,7 @@ La herramienta de administración local (`scripts/admin_tool.js`) permite gestio
 ## Procedimiento de Operación
 
 1. **Preparación del Entorno**
-   Asegúrate de tener un archivo `.env.local` configurado con las URLs correctas y la clave de rol de servicio (Service Role Key). No inicies la sesión con credenciales incrustadas.
+   Asegúrate de tener un archivo `.env.local` configurado con las URLs correctas y la clave secreta de servidor (SUPABASE_SECRET_KEY). No inicies la sesión con credenciales incrustadas.
 
 2. **Ejecución de la Herramienta**
    Abre una terminal en la raíz del proyecto y ejecuta la herramienta inyectando la bandera de autorización y el entorno:
