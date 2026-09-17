@@ -1,10 +1,7 @@
 import { getProductIdentity } from './store.js';
 
 const MAIN = ['walkingpad_local_products', 'repSession_Daniel', 'repHistory_Daniel', 'walkingpad_migration_conflicts'];
-// Backups may contain data from the retired module. Export it for archival only;
-// importing must never recreate that module's local data.
-const LEGACY_ARCHIVE = ['walkingpad_trackings', 'walkingpad_trackings_corrupted'];
-const KEYS = [...MAIN, ...MAIN.map(k => `${k}_corrupted`), ...LEGACY_ARCHIVE, 'walkingpad_custom_products'];
+const KEYS = [...MAIN, ...MAIN.map(k => `${k}_corrupted`), 'walkingpad_custom_products'];
 export function createBackup() {
   return JSON.stringify({ version: 1, timestamp: new Date().toISOString(), keys: Object.fromEntries(KEYS.map(k => [k, localStorage.getItem(k)])) }, null, 2);
 }

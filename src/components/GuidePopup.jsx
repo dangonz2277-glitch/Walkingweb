@@ -1,28 +1,10 @@
-import { useEffect, useRef } from 'react';
 import Guide from './Guide.jsx';
+import Modal from './Modal.jsx';
 
-export default function GuidePopup({ isOpen, onClose }) {
-  const dialogRef = useRef(null);
-  
-  useEffect(() => {
-    if (!dialogRef.current) return;
-    if (isOpen) {
-      dialogRef.current.showModal();
-    } else {
-      dialogRef.current.close();
-    }
-  }, [isOpen]);
-
-  const handleClose = () => {
-    onClose();
-  };
-
+export default function GuidePopup({ isOpen, onClose, triggerRef }) {
   return (
-    <dialog ref={dialogRef} onCancel={handleClose} onClose={handleClose} className="report-modal">
-      <div className="report-modal-content">
-        <button className="close-btn" onClick={handleClose}>X</button>
-        {isOpen && <Guide />}
-      </div>
-    </dialog>
+    <Modal isOpen={isOpen} onClose={onClose} triggerRef={triggerRef}>
+      {isOpen && <Guide />}
+    </Modal>
   );
 }

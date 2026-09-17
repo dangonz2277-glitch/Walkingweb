@@ -1,36 +1,21 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../data/supabaseClient.js';
 import { getProfile, getTodayReport, setResolvedCount, listMyReports } from '../data/reportRepository.js';
 import { getWorkDate } from '../utils/date.js';
 import { normalizeUsername } from '../utils/auth.js';
 
-export default function ReportPopup({ isOpen, onClose }) {
+import Modal from './Modal.jsx';
+
+export default function ReportPopup({ isOpen, onClose, triggerRef }) {
   const [hasOpened, setHasOpened] = useState(isOpen);
   if (isOpen && !hasOpened) {
     setHasOpened(true);
   }
-  const dialogRef = useRef(null);
-  
-  useEffect(() => {
-    if (!dialogRef.current) return;
-    if (isOpen) {
-      dialogRef.current.showModal();
-    } else {
-      dialogRef.current.close();
-    }
-  }, [isOpen]);
-
-  const handleClose = () => {
-    onClose();
-  };
 
   return (
-    <dialog ref={dialogRef} onCancel={handleClose} onClose={handleClose} className="report-modal">
-      <div className="report-modal-content">
-        <button className="close-btn" onClick={handleClose} aria-label="Cerrar">X</button>
-        {hasOpened && <ReportContent />}
-      </div>
-    </dialog>
+    <Modal isOpen={isOpen} onClose={onClose} triggerRef={triggerRef}>
+      {hasOpened && <ReportContent />}
+    </Modal>
   );
 }
 
@@ -93,7 +78,7 @@ function ReportContent() {
           <label>Contraseña
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required disabled={isSubmitting}/>
           </label>
-          {loginError && <p className="error">{loginError}</p>}
+          {loginError && <p className="error-alert" role="alert">{loginError}</p>}
           <button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Ingresando...' : 'Iniciar Sesión'}
           </button>
@@ -247,7 +232,7 @@ function ActiveReport() {
         </div>
       </header>
       
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error-alert" role="alert">{error}</p>}
       
       {profile?.status === 'active' && (
         <>
@@ -270,7 +255,7 @@ function ActiveReport() {
                 {saving ? 'Guardando...' : 'Guardar Reporte'}
               </button>
             )}
-            {savedNotice && <span className="success-notice">¡Guardado!</span>}
+            {savedNotice && <div className="success-notice-block" role="status">¡Reporte guardado exitosamente!</div>}
             
             {serverConflictCount !== null && (
               <div className="conflict-box">

@@ -1,21 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import Modal from './Modal.jsx';
 import { getAllProducts, getBaseProducts, getCategories, getIssues, getGeneralIssues, saveLocalProduct, deleteLocalProduct } from '../data/store.js';
 
 const fields = [
-  ['speed', 'Velocidad'], ['motor', 'Motor'], ['capacity', 'Capacidad'], 
-  ['area', 'Área'], ['weight', 'Peso'], ['folded', 'Plegado'], 
+  ['speed', 'Velocidad'], ['motor', 'Motor'], ['capacity', 'Capacidad'],
+  ['area', 'Área'], ['weight', 'Peso'], ['folded', 'Plegado'],
   ['control', 'Control'], ['assembly', 'Ensamblaje'], ['notes', 'Notas']
 ];
 
 const emptyForm = { cat: 'Vertical Fold', name: '', model: '', capacity: '', links: [], notes: '' };
 
-export default function Catalog({ notify }) {
+export default function Catalog({ notify = () => {} }) {
   const [products, setProducts] = useState(() => getBaseProducts());
-  const [query, setQuery] = useState(''); 
+  const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
-  const [expanded, setExpanded] = useState(null); 
+  const [expanded, setExpanded] = useState(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const addBtnRef = useRef(null);
+  const [editTrigger, setEditTrigger] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -24,19 +27,25 @@ export default function Catalog({ notify }) {
     return () => clearTimeout(t);
   }, []);
 
-  const filtered = products.filter(p => 
-    (category === 'All' || p.cat === category) && 
+  const filtered = products.filter(p =>
+    (category === 'All' || p.cat === category) &&
     [p.name, p.model, p.speed, p.motor, p.notes, p.cat, p.capacity, ...getIssues(p.issueKey).flatMap(i => [i.code, i.name, i.fix])]
       .some(v => String(v || '').toLowerCase().includes(query.toLowerCase().trim()))
   );
 
+  const filteredGeneralIssues = getGeneralIssues().filter(iss =>
+    !query || [iss.code, iss.name, iss.fix].some(v => String(v || '').toLowerCase().includes(query.toLowerCase().trim()))
+  );
+
   function startAdd() {
     setForm(emptyForm);
+    setEditTrigger(addBtnRef);
     setEditing(true);
   }
 
-  function startEdit(p) {
+  function startEdit(p, e) {
     setForm({ ...p, links: p.links || [] });
+    setEditTrigger({ current: e.currentTarget });
     setEditing(true);
   }
 
@@ -73,15 +82,15 @@ export default function Catalog({ notify }) {
       return;
     }
     const links = form.links.filter(link => link.url).map(link => ({ ...link, label: link.label || 'Enlace' }));
-    
+
     // We construct the product ensuring it retains issueKey if editing a base model
     const productToSave = { ...form, links };
-    
+
     if (!saveLocalProduct(productToSave)) {
       notify('No se pudo guardar. Conservamos el formulario para reintentar.');
       return;
     }
-    
+
     setProducts(getAllProducts());
     setEditing(false);
     notify('Producto guardado.');
@@ -91,17 +100,17 @@ export default function Catalog({ notify }) {
     <>
       <div className="controls">
         <input aria-label="Buscar catálogo" placeholder="Buscar modelo, error, síntoma..." value={query} onChange={e => setQuery(e.target.value)} />
-        <button onClick={startAdd}>+ Producto</button>
-        <span>{filtered.length} productos</span>
+        <button ref={addBtnRef} onClick={startAdd}>+ Producto</button>
+        <span>{filtered.length} productos | {filteredGeneralIssues.length} problemas generales</span>
         <div className="tabs">
-          {getCategories().map(c => 
+          {getCategories().map(c =>
             <button key={c.key} className={category === c.key ? 'active' : ''} onClick={() => setCategory(c.key)}>
               {c.label}
             </button>
           )}
         </div>
       </div>
-      
+
       <div className="grid">
         {filtered.map((p, i) => (
           <article className="card" key={`${p.model || p.name}-${i}`}>
@@ -110,11 +119,11 @@ export default function Catalog({ notify }) {
             </button>
             <small>{p.cat}{p.isOverride ? ' · Override Local' : (p.isCustom ? ' · Local' : '')}</small>
             <p>{p.speed} · {p.capacity}</p>
-            
+
             {expanded === p && (
               <div className="detail">
                 <div className="action-row">
-                  <button onClick={() => startEdit(p)}>Editar</button>
+                  <button onClick={(e) => startEdit(p, e)}>Editar</button>
                   {p.isOverride && <button onClick={() => handleRevert(p)}>Revertir a base</button>}
                   {p.isCustom && !p.isOverride && <button onClick={() => handleDelete(p)}>Eliminar</button>}
                 </div>
@@ -131,7 +140,7 @@ export default function Catalog({ notify }) {
                     {iss.parts && <p>Repuestos: {iss.parts}</p>}
                   </details>
                 )) : <p>Sin errores específicos registrados.</p>}
-                
+
                 {p.links?.map((link, j) => (
                   <a key={j} href={/^https?:\/\//i.test(link.url) ? link.url : undefined} target="_blank" rel="noreferrer">
                     {link.label || link.url} {link.price ? `- ${link.price}` : ''}
@@ -142,43 +151,39 @@ export default function Catalog({ notify }) {
           </article>
         ))}
       </div>
-      
+
       {!filtered.length && <p>Sin resultados.</p>}
-      
-      {!query && (
+
+      {filteredGeneralIssues.length > 0 && (
         <section>
           <h2>Problemas generales</h2>
           <div className="grid">
-            {getGeneralIssues().map((issue, i) => (
+            {filteredGeneralIssues.map((issue, i) => (
               <details className="card" key={i}>
                 <summary>{issue.code} · {issue.name}</summary>
-                <p>{issue.fix}</p>
+                <p className="preline">{issue.fix}</p>
               </details>
             ))}
           </div>
         </section>
       )}
 
-      {editing && (
-        <div className="overlay">
-          <form className="panel" onSubmit={save}>
-            <div className="panel-head">
-              <h2>{form.isCustom || form.isOverride ? 'Editar' : 'Nuevo'} producto</h2>
-              <button type="button" onClick={() => setEditing(false)}>Cerrar</button>
-            </div>
-            
-            <label>Nombre<input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
+      <Modal isOpen={editing} onClose={() => setEditing(false)} triggerRef={editTrigger}>
+        <form className="auth-form" onSubmit={save}>
+          <h2>{form.id || form.baseId ? 'Editar producto' : 'Nuevo producto'}</h2>
+
+          <label>Nombre<input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
             <label>Modelo<input value={form.model} readOnly={!!(form.isCustom || form.isOverride || products.some(p => p.model === form.model))} onChange={e => setForm({ ...form, model: e.target.value })} /></label>
             <label>Categoría
               <select value={form.cat} onChange={e => setForm({ ...form, cat: e.target.value })}>
                 {getCategories().filter(c => c.key !== 'All').map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
             </label>
-            
+
             {fields.map(([key, label]) => (
               <label key={key}>{label}<input value={form[key] || ''} onChange={e => setForm({ ...form, [key]: e.target.value })} /></label>
             ))}
-            
+
             <h3>Enlaces y precios</h3>
             {form.links.map((link, index) => (
               <div className="link-row" key={index}>
@@ -189,12 +194,11 @@ export default function Catalog({ notify }) {
               </div>
             ))}
             <button type="button" onClick={() => setForm({ ...form, links: [...form.links, { label: '', url: '', price: '' }] })}>+ Enlace</button>
-            
+
             <p>Los precios se introducen manualmente. Consultarlos en una tienda requiere Internet.</p>
-            <button>Guardar producto</button>
+            <button type="submit">Guardar producto</button>
           </form>
-        </div>
-      )}
+      </Modal>
     </>
   );
 }

@@ -20,10 +20,10 @@ describe('interfaz React', () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
   it('muestra 42 productos, busca un error y abre su detalle', () => {
     render(<App initialData={initialData} />);
-    expect(screen.getByText('42 productos')).toBeTruthy();
+    expect(screen.getByText(/42 productos/)).toBeTruthy();
     const issue = getIssues(first.issueKey)[0];
     fireEvent.change(screen.getByLabelText('Buscar catálogo'), { target: { value: issue.code } });
-    expect(screen.getByText(/productos$/)).toBeTruthy();
+    expect(screen.getByText(/productos/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Buscar catálogo'), { target: { value: first.model } });
     fireEvent.click(screen.getByRole('button', { name: new RegExp(first.name) }));
     expect(screen.getByText('Errores conocidos')).toBeTruthy();
@@ -50,7 +50,7 @@ describe('interfaz React', () => {
     fireEvent.click(screen.getByText('Guardar producto'));
     const saved = JSON.parse(localStorage.getItem('walkingpad_local_products'));
     expect(saved[0].links[0].price).toBe('$100');
-    expect(screen.getByText('43 productos')).toBeTruthy();
+    expect(screen.getByText(/43 productos/)).toBeTruthy();
   });
   it('permite editar un producto base, creando un override local, y revertirlo', () => {
     render(<App initialData={initialData} />);
@@ -148,7 +148,7 @@ describe('interfaz React', () => {
     
     render(<App initialData={initialData} />);
     // La suma de base + custom. Como hay 42 base y el override NO es custom (fusiona con la base), total debe ser 42.
-    expect(screen.getByText('42 productos')).toBeTruthy();
+    expect(screen.getByText(/42 productos/)).toBeTruthy();
     expect(await screen.findByText(/X218 Editado/)).toBeTruthy();
   });
 

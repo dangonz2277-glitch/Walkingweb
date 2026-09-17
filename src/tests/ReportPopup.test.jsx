@@ -220,7 +220,7 @@ describe('ReportPopup UI', () => {
     const btnOverwrite = screen.getByText(/Sobrescribir/i);
     fireEvent.click(btnOverwrite);
 
-    await waitFor(() => expect(screen.getByText('¡Guardado!')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('¡Reporte guardado exitosamente!')).toBeDefined());
     expect(setResolvedCount).toHaveBeenCalledWith(expect.any(String), 10, 2); // local value 10, remote revision 2
   });
 

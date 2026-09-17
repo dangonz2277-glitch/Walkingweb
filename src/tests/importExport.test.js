@@ -19,22 +19,16 @@ describe('datos y respaldo', () => {
     expect(getBaseProducts()).toHaveLength(42);
     expect(getIssues(getBaseProducts()[0].issueKey).length).toBeGreaterThan(0);
   });
-  it('exporta el archivo histórico del módulo retirado sin mostrarlo', () => {
-    localStorage.setItem('walkingpad_trackings_corrupted', '{roto');
-    const result = JSON.parse(createBackup());
-    expect(result.keys.walkingpad_trackings_corrupted).toBe('{roto');
-  });
+
   it('importa dos veces sin duplicar productos ni historiales sin id', () => {
     const data = backup({
       walkingpad_local_products: JSON.stringify([{ name: 'Nuevo', model: 'N1', cat: 'Hybrid' }]),
       repHistory_Daniel: JSON.stringify([{ date: 'ayer', calls: 2 }, { date: 'hoy', calls: 2 }]),
-      repSession_Daniel: JSON.stringify({ calls: 1 }),
-      walkingpad_trackings_corrupted: '{antiguo',
+      repSession_Daniel: JSON.stringify({ calls: 1 })
     });
     expect(importData(data).added).toBe(4);
     expect(importData(data).added).toBe(0);
     expect(JSON.parse(localStorage.getItem('repHistory_Daniel'))).toHaveLength(2);
-    expect(localStorage.getItem('walkingpad_trackings_corrupted')).toBeNull();
   });
   it('importa custom_products antiguo y lo migra a local_products', () => {
     const data = backup({
@@ -104,10 +98,7 @@ describe('datos y respaldo', () => {
     expect(JSON.parse(localStorage.getItem('walkingpad_migration_conflicts'))).toHaveLength(1);
     expect(localStorage.getItem('walkingpad_migration_conflicts_corrupted')).toBe('{corrupto');
   });
-  it('ignora datos del módulo retirado en respaldos antiguos', () => {
-    importData(backup({ walkingpad_trackings: JSON.stringify([{ id: 1, ticket: 'T1' }]) }));
-    expect(localStorage.getItem('walkingpad_trackings')).toBeNull();
-  });
+
   it('recupera un borrador antiguo y conserva el mismo shiftId', () => {
     localStorage.setItem('repSession_Daniel', JSON.stringify({ calls: 3 }));
     const first = loadRepState();
@@ -129,4 +120,10 @@ describe('datos y respaldo', () => {
     expect(loadRepState().shiftId).toBe('blocked');
     vi.restoreAllMocks();
   });
+  it('ausencia total de Trackings en respaldos nuevos', () => {
+    localStorage.setItem('walkingpad_trackings', 'secreto');
+    const bkp = JSON.parse(createBackup());
+    expect(bkp.keys.walkingpad_trackings).toBeUndefined();
+  });
+
 });

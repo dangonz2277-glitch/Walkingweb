@@ -1,64 +1,48 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Catalog from './components/Catalog.jsx';
 import GuidePopup from './components/GuidePopup.jsx';
 import ReportPopup from './components/ReportPopup.jsx';
-import { exportData, importData } from './data/importExport.js';
+import SettingsPopup from './components/SettingsPopup.jsx';
 import { initStore } from './data/store.js';
 
 export default function App({ initialData }) {
   useState(() => {
     if (initialData) initStore(initialData);
   });
-  
+
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
-  const [message,setMessage]=useState('');
-  const [revision,setRevision]=useState(0);
-  
-  async function upload(e){
-    const file=e.target.files?.[0];
-    if(!file)return;
-    try{
-      const result=importData(await file.text());
-      setMessage(`Importación: ${result.added} registros agregados; ${result.conflicts} conflictos conservados sin sobrescribir.`);
-      setRevision(revision+1);
-    }catch(err){
-      setMessage(err.message);
-    }
-    e.target.value='';
-  }
-  
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [message, setMessage] = useState('');
+  const [revision, setRevision] = useState(0);
+
+  const guideBtnRef = useRef(null);
+  const reportBtnRef = useRef(null);
+  const settingsBtnRef = useRef(null);
+
   return (
     <>
       <header>
         <h1>WalkingPad · Catálogo</h1>
-        <p>Consulta y trabajo local sin servidor</p>
+        <p>Catálogo y soporte técnico</p>
       </header>
       <nav>
-        <button className={!isReportOpen && !isGuideOpen ? 'active' : ''}>Catálogo</button>
-        <button className={isGuideOpen ? 'active' : ''} onClick={() => setIsGuideOpen(true)}>Guía</button>
-        <button className={isReportOpen ? 'active' : ''} onClick={() => setIsReportOpen(true)}>Mi Reporte</button>
-        <button onClick={()=>{
-          try{
-            exportData();
-            setMessage('Respaldo descargado. Guárdalo antes de cambiar de archivo.');
-          }catch(err){
-            setMessage(err.message);
-          }
-        }}>Exportar respaldo</button>
-        <label className="import-button">
-          Importar respaldo<input type="file" accept=".json,application/json" onChange={upload}/>
-        </label>
+        <button className={!isReportOpen && !isGuideOpen && !isSettingsOpen ? 'active' : ''}>Catálogo</button>
+        <button ref={guideBtnRef} className={isGuideOpen ? 'active' : ''} onClick={() => setIsGuideOpen(true)}>Guía</button>
+        <button ref={reportBtnRef} className={isReportOpen ? 'active' : ''} onClick={() => setIsReportOpen(true)}>Mi Reporte</button>
+        <button ref={settingsBtnRef} className={isSettingsOpen ? 'active' : ''} onClick={() => setIsSettingsOpen(true)}>Ajustes</button>
       </nav>
-      {message&&<p role="status" className="notice">{message}</p>}
+
+      {message && <div role="status" className="notice">{message}</div>}
       <main key={revision}>
-        <Catalog notify={setMessage}/>
+        <Catalog notify={setMessage} />
       </main>
-      
-      <GuidePopup isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
-      <ReportPopup isOpen={isReportOpen} onClose={() => setIsReportOpen(false)} />
+
+      <GuidePopup isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} triggerRef={guideBtnRef} />
+      <ReportPopup isOpen={isReportOpen} onClose={() => setIsReportOpen(false)} triggerRef={reportBtnRef} />
+      <SettingsPopup isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} triggerRef={settingsBtnRef} onImportSuccess={() => setRevision(rev => rev + 1)} />
     </>
   );
 }

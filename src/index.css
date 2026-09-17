@@ -88,3 +88,42 @@
   background: #dc3545;
   color: white;
 }
+body.scroll-lock {
+  overflow: hidden;
+}
+.success-notice-block {
+  background: #d4edda;
+  color: #155724;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #c3e6cb;
+  margin-top: 12px;
+  font-weight: bold;
+}
+.error-alert {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #f5c6cb;
+  margin-top: 12px;
+}
+
+@media(max-width:480px){
+  .conflict-actions {
+    flex-direction: column;
+  }
+  .controls > input {
+    flex: 1 1 100%;
+  }
+  .action-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
