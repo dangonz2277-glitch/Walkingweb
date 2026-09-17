@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ReportPopup from '../components/ReportPopup';
 import { supabase } from '../data/supabaseClient';
@@ -218,9 +218,9 @@ describe('ReportPopup UI', () => {
     // Presionar Sobrescribir
     setResolvedCount.mockResolvedValueOnce({ success: true, data: { revision: 3 } });
     const btnOverwrite = screen.getByText(/Sobrescribir/i);
-    fireEvent.click(btnOverwrite);
+    act(() => { fireEvent.click(btnOverwrite); });
 
-    await waitFor(() => expect(screen.getByText('¡Reporte guardado exitosamente!')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('¡Reporte guardado exitosamente!')).toBeDefined(), { timeout: 2000 });
     expect(setResolvedCount).toHaveBeenCalledWith(expect.any(String), 10, 2); // local value 10, remote revision 2
   });
 

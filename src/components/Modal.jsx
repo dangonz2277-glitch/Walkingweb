@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export default function Modal({ isOpen, onClose, title, children, triggerRef, className = 'report-modal' }) {
+export default function Modal({ isOpen, onClose, title, children, triggerRef, className = 'report-modal', ariaLabelledBy }) {
   const dialogRef = useRef(null);
   
   useEffect(() => {
@@ -15,10 +15,10 @@ export default function Modal({ isOpen, onClose, title, children, triggerRef, cl
     } else {
       if (dialog.open) {
         dialog.close();
-        document.body.classList.remove('scroll-lock');
-        if (triggerRef?.current) {
-          triggerRef.current.focus();
-        }
+      }
+      document.body.classList.remove('scroll-lock');
+      if (triggerRef?.current) {
+        triggerRef.current.focus();
       }
     }
   }, [isOpen, triggerRef]);
@@ -30,7 +30,11 @@ export default function Modal({ isOpen, onClose, title, children, triggerRef, cl
     };
   }, []);
 
-  const handleClose = () => {
+  const handleClose = (e) => {
+    // Prevent default so we handle the state synchronization
+    if (e && e.type === 'cancel') {
+      e.preventDefault();
+    }
     // Only call onClose if the dialog is logically open.
     // Native dialog fires 'close' event when closed programmatically or via ESC.
     if (isOpen) {
@@ -39,10 +43,10 @@ export default function Modal({ isOpen, onClose, title, children, triggerRef, cl
   };
 
   return (
-    <dialog ref={dialogRef} onCancel={handleClose} onClose={handleClose} className={className}>
+    <dialog ref={dialogRef} onCancel={handleClose} onClose={handleClose} className={className} aria-labelledby={ariaLabelledBy || (title ? "dialog-title" : undefined)}>
       <div className="report-modal-content">
         <button type="button" className="close-btn" onClick={() => { if(isOpen) onClose(); }} aria-label="Cerrar">X</button>
-        {title && <h2 style={{ marginTop: 0 }}>{title}</h2>}
+        {title && <h2 id="dialog-title" style={{ marginTop: 0 }}>{title}</h2>}
         {children}
       </div>
     </dialog>

@@ -39,7 +39,7 @@ export default function SettingsPopup({ isOpen, onClose, triggerRef, onImportSuc
         </label>
       </div>
 
-      {message && <div role="status" className="notice" style={{ marginTop: '16px', marginLeft: 0, marginRight: 0 }}>{message}</div>}
+      {message && <div role={message.startsWith('Error') ? 'alert' : 'status'} className="notice" style={{ marginTop: '16px', marginLeft: 0, marginRight: 0 }}>{message}</div>}
     </Modal>
   );
 }

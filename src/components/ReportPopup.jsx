@@ -13,7 +13,7 @@ export default function ReportPopup({ isOpen, onClose, triggerRef }) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} triggerRef={triggerRef}>
+    <Modal isOpen={isOpen} onClose={onClose} triggerRef={triggerRef} ariaLabelledBy="report-title">
       {hasOpened && <ReportContent />}
     </Modal>
   );
@@ -225,7 +225,7 @@ function ActiveReport() {
   return (
     <div className="active-report">
       <header className="report-header">
-        <h2>Mi Reporte</h2>
+        <h2 id="report-title">Mi Reporte</h2>
         <div className="profile-info">
           <span>{profile?.display_name || 'Perfil'}</span>
           <button onClick={handleLogout} className="logout-btn">Cerrar Sesión</button>

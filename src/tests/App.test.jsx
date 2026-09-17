@@ -37,7 +37,7 @@ describe('interfaz React', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function(key, value) { if (key === 'walkingpad_local_products') throw Error('quota'); return original.call(this, key, value); });
     fireEvent.click(screen.getByText('Guardar producto'));
     expect(screen.getByLabelText('Nombre').value).toBe('Nuevo');
-    expect(screen.getByRole('status').textContent).toMatch(/No se pudo guardar/);
+    expect(screen.getByRole('alert').textContent).toMatch(/No se pudo guardar/);
   });
   it('guarda un producto con enlace y precio manual', () => {
     render(<App initialData={initialData} />); fireEvent.click(screen.getByText('+ Producto'));

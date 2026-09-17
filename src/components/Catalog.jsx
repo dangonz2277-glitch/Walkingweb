@@ -17,6 +17,7 @@ export default function Catalog({ notify = () => {} }) {
   const [expanded, setExpanded] = useState(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [formError, setFormError] = useState('');
   const addBtnRef = useRef(null);
   const [editTrigger, setEditTrigger] = useState(null);
 
@@ -38,12 +39,14 @@ export default function Catalog({ notify = () => {} }) {
   );
 
   function startAdd() {
+    setFormError('');
     setForm(emptyForm);
     setEditTrigger(addBtnRef);
     setEditing(true);
   }
 
   function startEdit(p, e) {
+    setFormError('');
     setForm({ ...p, links: p.links || [] });
     setEditTrigger({ current: e.currentTarget });
     setEditing(true);
@@ -73,12 +76,13 @@ export default function Catalog({ notify = () => {} }) {
 
   function save(e) {
     e.preventDefault();
+    setFormError('');
     if (!form.name.trim() || !form.model.trim() || !form.capacity.trim()) {
-      notify('Nombre, modelo y capacidad son obligatorios.');
+      setFormError('Nombre, modelo y capacidad son obligatorios.');
       return;
     }
     if (form.links.some(link => link.url && !/^https?:\/\//i.test(link.url))) {
-      notify('Los enlaces deben comenzar con http:// o https://.');
+      setFormError('Los enlaces deben comenzar con http:// o https://.');
       return;
     }
     const links = form.links.filter(link => link.url).map(link => ({ ...link, label: link.label || 'Enlace' }));
@@ -86,8 +90,13 @@ export default function Catalog({ notify = () => {} }) {
     // We construct the product ensuring it retains issueKey if editing a base model
     const productToSave = { ...form, links };
 
-    if (!saveLocalProduct(productToSave)) {
-      notify('No se pudo guardar. Conservamos el formulario para reintentar.');
+    try {
+      if (!saveLocalProduct(productToSave)) {
+        setFormError('No se pudo guardar. Conservamos el formulario para reintentar.');
+        return;
+      }
+    } catch(err) {
+      setFormError(err.message || 'Error de cuota al guardar.');
       return;
     }
 
@@ -101,7 +110,7 @@ export default function Catalog({ notify = () => {} }) {
       <div className="controls">
         <input aria-label="Buscar catálogo" placeholder="Buscar modelo, error, síntoma..." value={query} onChange={e => setQuery(e.target.value)} />
         <button ref={addBtnRef} onClick={startAdd}>+ Producto</button>
-        <span>{filtered.length} productos | {filteredGeneralIssues.length} problemas generales</span>
+        <span>{filtered.length} {filtered.length === 1 ? 'producto' : 'productos'} | {filteredGeneralIssues.length} {filteredGeneralIssues.length === 1 ? 'problema general' : 'problemas generales'}</span>
         <div className="tabs">
           {getCategories().map(c =>
             <button key={c.key} className={category === c.key ? 'active' : ''} onClick={() => setCategory(c.key)}>
@@ -168,9 +177,10 @@ export default function Catalog({ notify = () => {} }) {
         </section>
       )}
 
-      <Modal isOpen={editing} onClose={() => setEditing(false)} triggerRef={editTrigger}>
+      <Modal isOpen={editing} onClose={() => setEditing(false)} triggerRef={editTrigger} ariaLabelledBy="product-form-title">
         <form className="auth-form" onSubmit={save}>
-          <h2>{form.id || form.baseId ? 'Editar producto' : 'Nuevo producto'}</h2>
+          <h2 id="product-form-title">{form.id || form.baseId ? 'Editar producto' : 'Nuevo producto'}</h2>
+          {formError && <div role="alert" className="error-notice" style={{color: 'red', marginBottom: '1rem'}}>{formError}</div>}
 
           <label>Nombre<input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
             <label>Modelo<input value={form.model} readOnly={!!(form.isCustom || form.isOverride || products.some(p => p.model === form.model))} onChange={e => setForm({ ...form, model: e.target.value })} /></label>
