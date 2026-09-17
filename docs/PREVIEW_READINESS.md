@@ -83,4 +83,13 @@ Las siguientes migraciones ya fueron empujadas previamente al proyecto real aloj
 - **Perfiles Actuales**: El único perfil restante activo en la base de datos es el perfil administrado de Daniel.
 - **Incidencia `request.ip`**: Durante el primer despliegue se descubrió que el runtime de Next.js en Vercel no expone `request.ip`. Como solución temporal se habilitó `TRUST_FORWARDED_IP=1`. La **solución definitiva** ha sido implementada: cuando se detecta el entorno Vercel (`VERCEL=1`), el sistema prioriza incondicionalmente la cabecera `x-vercel-forwarded-for` garantizada por la infraestructura, cayendo a `x-forwarded-for` como respaldo, blindando así el Rate Limit contra suplantaciones.
 
-**Candidato a cierre, pendiente de CI y validación del redeploy con la resolución nativa de Vercel**
+## Cierre Documental y Validación de CI (Orden 16)
+- **CI Aprobado**: Flujo de GitHub Actions `35232628871` finalizado con éxito. Build, lint, pruebas React, pgTAP, concurrencia, API y gateway fueron todos aprobados.
+- **Identidad de Cliente (IP)**: La resolución nativa de IP de Vercel fue desplegada correctamente. `TRUST_FORWARDED_IP` permanece temporalmente configurada solo por compatibilidad, pero ya no es utilizada por el sistema cuando `VERCEL=1`.
+- **Acceso General y Contraseña**: Acceso general operativo; la nueva configuración de contraseña fue validada con éxito en el entorno remoto (sin documentar su valor).
+- **Catálogo**: Catálogo de 42 productos 100% operativo en producción.
+- **Mi Reporte**: Validado correctamente en tres dispositivos independientes.
+- **Smoke Test**: El smoke test remoto (`test:preview:smoke`) fue aprobado y la limpieza automática de la cuenta sintética fue confirmada.
+- **Perfiles Remotos**: El único perfil remoto restante y activo en la base de datos es el usuario administrado Daniel.
+
+**Backend cerrado y validado en producción.**
