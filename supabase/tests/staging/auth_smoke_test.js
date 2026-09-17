@@ -1,5 +1,6 @@
 import { getAdminClient, createManagedUser, disableManagedUser, resetManagedUserPassword } from '../../../src/backend/authAdmin.js';
 import { normalizeUsername } from '../../../src/utils/auth.js';
+import { getWorkDate } from '../../../src/utils/date.js';
 import { createClient } from '@supabase/supabase-js';
 import { fileURLToPath } from 'url';
 
@@ -75,42 +76,49 @@ export async function runStagingSmokeTest() {
     const client2 = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: false } });
 
     const { error: login1Err } = await client1.auth.signInWithPassword({ email: email1, password: pass1 });
-    if (login1Err) throw new Error(`Login failed for user 1: ${login1Err.message}`);
+    if (login1Err) throw new Error(`Login failed for user1: ${login1Err.message}`);
 
     const { error: login2Err } = await client2.auth.signInWithPassword({ email: email2, password: pass2 });
-    if (login2Err) throw new Error(`Login failed for user 2: ${login2Err.message}`);
+    if (login2Err) throw new Error(`Login failed for user2: ${login2Err.message}`);
 
     console.log('Logins successful.');
 
     // 4. Comprobar guardado atómico y mismo día/mismo total (Atomic save + RLS isolation)
-    console.log('Testing atomic save and RLS...');
-    const testDate = new Date().toISOString().split('T')[0];
+    console.log('Testing atomic save and symmetric RLS...');
+    const testDate = getWorkDate();
 
+    // User 1 saves 5
     const { data: rpcData1, error: rpcErr1 } = await client1.rpc('set_daily_report', {
       p_work_date: testDate,
       p_resolved_count: 5,
       p_expected_revision: 0
     });
-    if (rpcErr1) throw new Error(`set_daily_report failed for client 1: ${rpcErr1.message}`);
+    if (rpcErr1) throw new Error(`set_daily_report failed for user1: ${rpcErr1.message}`);
     if (!rpcData1 || rpcData1.success !== true || rpcData1.revision !== 1) {
-      throw new Error(`set_daily_report invalid creation response: ${JSON.stringify(rpcData1)}`);
+      throw new Error(`set_daily_report invalid creation response for user1: ${JSON.stringify(rpcData1)}`);
     }
 
+    // User 2 saves 5
     const { data: rpcData2, error: rpcErr2 } = await client2.rpc('set_daily_report', {
       p_work_date: testDate,
       p_resolved_count: 5, // SAME TOTAL
       p_expected_revision: 0
     });
-    if (rpcErr2) throw new Error(`set_daily_report failed for client 2: ${rpcErr2.message}`);
+    if (rpcErr2) throw new Error(`set_daily_report failed for user2: ${rpcErr2.message}`);
     if (!rpcData2 || rpcData2.success !== true || rpcData2.revision !== 1) {
-      throw new Error(`set_daily_report invalid creation response for client 2: ${JSON.stringify(rpcData2)}`);
+      throw new Error(`set_daily_report invalid creation response for user2: ${JSON.stringify(rpcData2)}`);
     }
 
-    // Verify isolation: Client 2 should only see their own report, not Client 1's
-    const { data: c2Reports, error: readErr } = await client2.from('daily_reports').select('*').eq('work_date', testDate);
-    if (readErr) throw new Error(`Read failed: ${readErr.message}`);
-    if (c2Reports.length !== 1) throw new Error(`RLS Failure: Client 2 sees ${c2Reports.length} reports for the date.`);
-    if (c2Reports[0].user_id !== uid2) throw new Error('RLS Failure: Client 2 sees report belonging to someone else.');
+    // Symmetric isolation check
+    const { data: c1Reports, error: readErr1 } = await client1.from('daily_reports').select('*').eq('work_date', testDate);
+    if (readErr1) throw new Error(`Read failed for user1: ${readErr1.message}`);
+    if (c1Reports.length !== 1) throw new Error(`RLS Failure: user1 sees ${c1Reports.length} reports for the date.`);
+    if (c1Reports[0].user_id !== uid1) throw new Error('RLS Failure: user1 sees report belonging to someone else.');
+
+    const { data: c2Reports, error: readErr2 } = await client2.from('daily_reports').select('*').eq('work_date', testDate);
+    if (readErr2) throw new Error(`Read failed for user2: ${readErr2.message}`);
+    if (c2Reports.length !== 1) throw new Error(`RLS Failure: user2 sees ${c2Reports.length} reports for the date.`);
+    if (c2Reports[0].user_id !== uid2) throw new Error('RLS Failure: user2 sees report belonging to someone else.');
 
     // Mismo día/mismo total (Conflict testing on client 1)
     const { data: rpcDataConflict, error: rpcConflictErr } = await client1.rpc('set_daily_report', {
@@ -129,14 +137,10 @@ export async function runStagingSmokeTest() {
     console.log('Testing user disable...');
     await disableManagedUser(adminClient, uid1);
 
-    // Auth ban blocks NEW logins
-    const { error: login1BlockedErr } = await client1.auth.signInWithPassword({ email: email1, password: pass1 });
-    if (!login1BlockedErr) throw new Error('Disable failure: User 1 could still log in.');
-
     // Client with previous token fails to read reports (RLS status check)
     const { error: readBlockedErr, data: readBlockedData } = await client1.from('daily_reports').select('*');
     if (readBlockedErr) console.log('Read blocked as expected:', readBlockedErr.message);
-    if (readBlockedData && readBlockedData.length > 0) throw new Error('Disable failure: User 1 can still read reports.');
+    if (readBlockedData && readBlockedData.length > 0) throw new Error('Disable failure: user1 can still read reports with pre-existing token.');
 
     // Client with previous token fails to RPC (inactive profile check)
     const { error: rpcBlockedErr } = await client1.rpc('set_daily_report', {
@@ -144,9 +148,14 @@ export async function runStagingSmokeTest() {
       p_resolved_count: 15,
       p_expected_revision: 1
     });
-    if (!rpcBlockedErr || !rpcBlockedErr.message.includes('No se encontró el perfil activo para el usuario.')) {
-      throw new Error(`Disable failure: User 1 RPC did not fail correctly. Error: ${rpcBlockedErr?.message}`);
+    if (!rpcBlockedErr || !rpcBlockedErr.message.includes('Profile is not active')) {
+      throw new Error(`Disable failure: user1 RPC did not fail with exactly 'Profile is not active'. Error: ${rpcBlockedErr?.message}`);
     }
+
+    // Auth ban blocks NEW logins
+    const client1New = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: false } });
+    const { error: login1BlockedErr } = await client1New.auth.signInWithPassword({ email: email1, password: pass1 });
+    if (!login1BlockedErr) throw new Error('Disable failure: user1 could still log in anew.');
 
     console.log('Disable user verified.');
 
@@ -171,28 +180,37 @@ export async function runStagingSmokeTest() {
   console.log('Cleaning up synthetic data...');
   const cleanupErrors = [];
 
-  const cleanupUser = async (uid) => {
+  const cleanupUser = async (uid, label) => {
     if (!uid) return;
     try {
-      await adminClient.auth.admin.deleteUser(uid);
+      const { error: delErr } = await adminClient.auth.admin.deleteUser(uid);
+      if (delErr) cleanupErrors.push(`Failed to delete auth user ${label}: ${delErr.message}`);
 
       // Verification: ensure no profile or reports exist
-      const { data: profs } = await adminClient.from('profiles').select('*').eq('user_id', uid);
-      if (profs && profs.length > 0) cleanupErrors.push(`Profile for ${uid} was not cascade-deleted.`);
+      const { data: profs, error: profErr } = await adminClient.from('profiles').select('*').eq('user_id', uid);
+      if (profErr) cleanupErrors.push(`Failed querying profiles for ${label}: ${profErr.message}`);
+      else if (profs && profs.length > 0) cleanupErrors.push(`Profile for ${label} was not cascade-deleted.`);
 
-      const { data: reps } = await adminClient.from('daily_reports').select('*').eq('user_id', uid);
-      if (reps && reps.length > 0) cleanupErrors.push(`Reports for ${uid} were not cascade-deleted.`);
+      const { data: reps, error: repErr } = await adminClient.from('daily_reports').select('*').eq('user_id', uid);
+      if (repErr) cleanupErrors.push(`Failed querying reports for ${label}: ${repErr.message}`);
+      else if (reps && reps.length > 0) cleanupErrors.push(`Reports for ${label} were not cascade-deleted.`);
     } catch (e) {
-      cleanupErrors.push(`Failed to clean up user ${uid}: ${e.message}`);
+      cleanupErrors.push(`Exception during cleanup for ${label}: ${e.message}`);
     }
   };
 
-  await cleanupUser(uid1);
-  await cleanupUser(uid2);
+  await cleanupUser(uid1, 'user1');
+  await cleanupUser(uid2, 'user2');
 
   if (cleanupErrors.length > 0) {
-    if (testError) console.error('Original error before cleanup failure:', testError);
-    testError = new Error('Cleanup failed with errors:\n' + cleanupErrors.join('\n'));
+    const cleanupErrorObj = new Error('Cleanup failed with errors:\n' + cleanupErrors.join('\n'));
+    if (testError) {
+      console.error('Original error before cleanup failure:', testError);
+      // Combine errors
+      testError = new Error(testError.message + '\n\n' + cleanupErrorObj.message);
+    } else {
+      testError = cleanupErrorObj;
+    }
   }
 
   console.log('Cleanup complete.');

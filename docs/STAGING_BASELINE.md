@@ -36,7 +36,7 @@ Se realizaron comprobaciones con la API REST (PostgREST) usando las claves públ
    - El bloqueo de acceso anónimo ha sido validado empíricamente, y su configuración está respaldada por una combinación verificable de revocaciones de permisos (`REVOKE ALL`/`REVOKE EXECUTE` de _grants_ públicos) en el motor de PostgreSQL y políticas de Nivel de Fila (RLS) en las tablas subyacentes.
 
 ## 4. Requisitos y Plan del Smoke Test (Orden 10A)
-Se ha diseñado el script `supabase/tests/staging/auth_smoke_test.js` para validar la integración con Auth remoto. Este script **requiere autorización explícita** para ejecutarse.
+Se ha diseñado el script `supabase/tests/staging/auth_smoke_test.js` para validar la integración con Auth remoto. Este script **requiere autorización explícita** para ejecutarse vía `ALLOW_STAGING_MUTATION=1`.
 
 **Verificaciones Pendientes en el Dashboard de Supabase (por Daniel):**
 Debido a que la configuración no ha sido empujada (`config push`), debes realizar los siguientes ajustes manuales en el Dashboard del proyecto:
@@ -46,9 +46,9 @@ Debido a que la configuración no ha sido empujada (`config push`), debes realiz
 
 **Plan del Smoke Test (Una vez autorizado):**
 1. Comprobación del Guard: Exigirá `ALLOW_STAGING_MUTATION=1`, rechazará URLs no seguras (HTTP, localhost, subdominios alterados o credenciales embebidas), validando exhaustivamente que el `project ref` coincida con el de staging (`unctlwxbttwfumnekctx.supabase.co`).
-2. Crear Usuarios Sintéticos: Se darán de alta 2 cuentas (ej: `smoke1_<timestamp>@walkingweb.internal`).
-3. Operaciones de Login y Guardado Atómico (RLS). Ambos registrarán la misma meta en la misma fecha para comprobar conflicto (atómico) y privacidad estricta (RLS).
-4. Prueba de Bloqueo por Desactivación: Se banea a un usuario y se comprueba que el token previo expira o falla al intentar consultar tablas protegidas o invocar la RPC (`set_daily_report`).
+2. Crear Usuarios Sintéticos: Se darán de alta 2 cuentas simétricas usando la utilidad de normalización interna del proyecto.
+3. Operaciones de Login y Guardado Atómico (RLS). Ambos registrarán la misma meta en la misma fecha (zona horaria La Paz) para comprobar la privacidad estricta simétrica.
+4. Prueba de Bloqueo por Desactivación: Se desactiva el perfil de un usuario (baneo remoto). El token ya emitido no "expira" instantáneamente del lado del cliente, sino que las operaciones posteriores (leer tablas o ejecutar la RPC `set_daily_report`) son rechazadas explícitamente por el motor RLS y las sentencias SQL defensivas que consultan el estado "inactivo" del perfil. También se verificará que un login nuevo sea rechazado.
 5. Limpieza automática (*finally block*) estricta que captura errores. Elimina los usuarios de Auth desencadenando un ON DELETE CASCADE, y verifica mediante cliente administrador que no persisten registros huérfanos.
 
 *Nota de Seguridad: Este documento ha sido purgado de cadenas de conexión, contraseñas, secretos JWT o identificadores de base de datos internos.*

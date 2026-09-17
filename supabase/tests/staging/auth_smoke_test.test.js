@@ -86,3 +86,17 @@ describe('auth_smoke_test security guard', () => {
     })).not.toThrow();
   });
 });
+
+import { runStagingSmokeTest } from './auth_smoke_test.js';
+describe('auth_smoke_test orchestration', () => {
+  it('runStagingSmokeTest fails before making any network calls if ALLOW_STAGING_MUTATION != 1', async () => {
+    const origEnv = process.env;
+    process.env = { ...origEnv, ALLOW_STAGING_MUTATION: '0' };
+
+    try {
+      await expect(runStagingSmokeTest()).rejects.toThrow(/ALLOW_STAGING_MUTATION=1 is required/);
+    } finally {
+      process.env = origEnv;
+    }
+  });
+});
