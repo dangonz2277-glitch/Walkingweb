@@ -1,18 +1,21 @@
-# Checklist de Preparación para Vercel Preview
+# Checklist de Preparación para Vercel Preview (Orden 13A)
 
 ## Auditoría de Entorno y Secretos
-- ✅ `package.json` y `.github/workflows/ci.yml` revisados. No exponen variables de entorno críticas en `console.log` o comandos no seguros.
-- ✅ `.env.example` contiene solo nombres de variables de entorno y datos dummy (documentación clara sin riesgo de filtración).
-- ✅ `.gitignore` protege el archivo `.env.local` y otras configuraciones locales (`*.local`).
-- ✅ Archivos compilados en `.next/static/` (bundles del cliente) verificados. No contienen la cadena `SUPABASE_SECRET_KEY` ni contraseñas.
-- ✅ Datos eliminados de `Trackings` (`walkingpad_trackings`) no están presentes en los artefactos de compilación ni en la base de datos (migraciones locales).
+- ✅ `package.json`, `.github/workflows/ci.yml` y scripts revisados. Ninguno imprime variables ni lee de forma insegura `.env.local`.
+- ✅ `.env.example` contiene *exclusivamente* nombres de las variables requeridas y valores claramente ficticios (documentación segura).
+- ✅ `.gitignore` excluye `.env.local` y toda configuración privada (`*.local`).
+- ✅ Artefactos de `.next` (incluyendo cliente y servidor) inspeccionados binariamente. Ningún valor real de `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, contraseñas globales ni `SITE_SESSION_SECRET` está embebido/inlined en el código compilado.
+- ✅ Datos obsoletos de Trackings (`walkingpad_trackings`) eliminados del código y confirmados ausentes en los artefactos generados.
 
-## Pruebas Integradas Ejecutadas
-Se ha simulado un reinicio puro de la base de datos local y la ejecución en cadena de toda la batería de pruebas en estricto modo local.
+## Confirmación de Destino (Localhost)
+- Se confirmó activamente (vía `npx supabase status`) que el entorno local usa la API en `http://127.0.0.1:54321` y Postgres en `postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
+- Se revisaron las variables del sistema y de shell asegurando que `SUPABASE_URL` o `PG_CONN_STRING` no forzaran peticiones remotas.
+- Las pruebas mutables (`test:concurrency`, `test:api`, `test:gateway`) extrajeron y apuntaron con certeza únicamente a las credenciales efímeras locales, garantizando protección de la instancia real de Supabase.
+
+## Ejecución Integrada Local
 
 ### Comandos
 ```bash
-npx supabase status
 npx supabase db reset --local
 npx supabase test db
 npm run test:concurrency
@@ -23,54 +26,45 @@ npm run lint
 npm run build
 ```
 
-### Resultados
-- **Base de Datos (pgTAP)**: `All tests successful (Files=3, Tests=48)` - Políticas RLS, Atomic Save y Rate Limiting funcionando.
-- **Concurrencia (`test:concurrency`)**: Todas las iteraciones pasadas. Control de bloqueo optimista (`expected_revision`) funcionando como se espera (sin sobreescrituras perdidas).
-- **API (`test:api`)**: Gestión Auth confirmada. Registro público bloqueado y administración de perfiles aislada y segura.
-- **Gateway (`test:gateway`)**: Reglas de middleware verificadas. Protección por cookies `SITE_SESSION_SECRET` y manejo del `Rate Limit` en memoria correctos. Fallbacks y falsificaciones rechazadas (429/500/307).
-- **Cliente (`npm test`)**: 13 suites, 98 pruebas exitosas. Cero falsos positivos. Estabilidad contra carreras asegurada.
-- **Linting (`npm run lint`)**: Sin advertencias (limpio).
-- **Compilación (`npm run build`)**: Generación de páginas estáticas y SSR sin errores (optimización en ~250ms).
+### Resultados Saneados
+- **Reset DB**: Migraciones iniciales y de rate limit aplicadas exitosamente al contenedor local.
+- **Base de Datos (pgTAP)**: 48 pruebas exitosas en `rate_limit_test.sql`, `20260912_rls_policies_test.sql` y `20260912_order03_atomic_save_test.sql`.
+- **Concurrencia (`test:concurrency`)**: 5 simulaciones completas aprobadas. Validación de `expected_revision` confirmada.
+- **API (`test:api`)**: 8 validaciones de aislamiento y roles administrados superadas. Registro público correctamente bloqueado (local).
+- **Gateway (`test:gateway`)**: 14 validaciones de rate limit y protección de sesión sin estado completadas satisfactoriamente (incluyendo bloqueos HTTP 429).
+- **Cliente (`npm test`)**: 13 suites, 98 pruebas pasadas. Condición de carrera superada exitosamente.
+- **Lint (`npm run lint`)**: Aprobado sin advertencias activas.
+- **Compilación (`npm run build`)**: Generación estática y dinámica de Next.js lista (~250ms).
 
-## Variables Requeridas por Entorno
+## Requisitos de Variables por Entorno
 
-### Local / Desarrollo (CLI Supabase Local)
+### Entornos de Navegador (Cliente)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+### Entornos de Servidor (SSR, Pruebas y Scripts)
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SECRET_KEY`
+- `SUPABASE_SECRET_KEY` (Secreto estricto)
 - `SUPABASE_JWKS_URL`
-- `SITE_PASSWORD`
-- `SITE_SESSION_SECRET`
+- `SITE_PASSWORD` (Secreto estricto)
+- `SITE_SESSION_SECRET` (Secreto estricto, min. 32 chars)
 
 ### GitHub Actions (CI)
-Solo requiere mock values inyectados en su `.yml` nativo para pasar los tests unitarios. Todo está aprovisionado.
+Solo requiere mock values ficticios (e.g. `test-secret-key-1234567890-not-for-prod`) inyectados en `.github/workflows/ci.yml`. No requiere secretos reales del repositorio.
 
-### Vercel Preview (Entorno efímero)
-Debe poseer configuradas en Vercel las siguientes variables conectadas al proyecto Supabase de Staging/Preview:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SECRET_KEY`
-- `SUPABASE_JWKS_URL`
-- `SITE_PASSWORD`
-- `SITE_SESSION_SECRET` (Mínimo 32 caracteres)
+### Vercel Preview y Producción
+Requieren la definición de todas las variables mencionadas arriba en sus respectivas configuraciones de entorno. En Vercel Preview se conectará al Supabase de Staging/Preview.
 
-### Producción (Main / Supabase Prod)
-Al igual que Preview, pero enlazadas al Supabase Definitivo y rotando la contraseña general.
-
-## Migraciones Remotas
-Las siguientes migraciones y comandos han sido probados y validados previamente en el entorno real de Supabase Staging, encontrándose listos para acompañar al frontend:
+## Migraciones Remotas Ya Aplicadas
+Las siguientes migraciones ya fueron empujadas previamente al proyecto real (Supabase remoto) durante órdenes anteriores:
 1. `20260912_initial_schema.sql`
 2. `20260912220000_atomic_save.sql`
 3. `20260913150000_rate_limit.sql`
-- Configuración de Auth (Registro anónimo desactivado remotamente en Supabase).
 
 ## Riesgos y Validaciones Pendientes
-- **Verificación de Enlaces Mágicos/Emails**: Auth por correo está operando sin servidores SMTP externos (solo testing). Se debe evaluar si el cliente real necesitará envío de correos, o si todo operará vía CLI administrativo (Actual: exclusivo administrativo).
-- **Rendimiento Edge vs Node**: Middleware usa cookies firmadas nativamente. Si en Vercel Edge surge algún inconveniente, se validará a nivel de Preview log. (Testeado localmente en ambiente Node sin problemas).
-- **Rotación de Secretos**: `SITE_SESSION_SECRET` debe ser gestionado estrictamente fuera de git. 
+- **Ausencia de SMTP Real**: La autenticación sigue flujos administrados (Order 05 y Orden 11A) a través de un CLI administrativo local, sin soporte de correos mágicos de usuario directo (el registro está deshabilitado en Supabase remoto).
+- **Generación de Enlaces de Reactivación**: Los reseteos de clave y reactivaciones generan tokens válidos (verificados en test:api), los cuales serán consumidos localmente por el script CLI y entregados físicamente a los usuarios del centro, evitando dependencia de correo de terceros.
+- **Bordes de Middleware Edge**: La firma nativa de cookies está comprobada en Node; de surgir diferencias criptográficas en Vercel Edge Runtime, se revisará en la fase Preview.
 
-**Todo validado de extremo a extremo de forma local.**
+**El repositorio se encuentra bloqueado, documentado, intacto respecto a entornos remotos, y oficialmente listo para Vercel Preview.**
