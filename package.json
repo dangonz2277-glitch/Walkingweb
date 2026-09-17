@@ -12,7 +12,8 @@
     "test:concurrency": "node supabase/tests/database/concurrent_test.js",
     "test:api": "node supabase/tests/api/api_test.js",
     "test:gateway": "node tests/gateway_test.js",
-    "test:staging:smoke": "node --env-file=.env.local supabase/tests/staging/auth_smoke_test.js"
+    "test:staging:smoke": "node --env-file=.env.local supabase/tests/staging/auth_smoke_test.js",
+    "test:preview:smoke": "node supabase/tests/preview/auth_smoke_test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

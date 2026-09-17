@@ -55,7 +55,14 @@ El workflow de GitHub Actions fue revisado y los controles equivalentes pasaron 
 
 ### Vercel Preview y Producción
 Requieren la definición de todas las variables mencionadas arriba en sus respectivas configuraciones de entorno.
-**Nota Importante sobre Bases de Datos**: Actualmente existe un único proyecto Supabase alojado (WalkingWeb). Si el entorno de Preview usa estas mismas variables, Preview y Producción compartirán usuarios y reportes. Crear otro proyecto Supabase completamente aislado es opcional pero todavía no está implementado. Esta decisión arquitectónica debe tomarse **antes** de probar operaciones de escritura desde Vercel Preview.
+**Nota Importante sobre Bases de Datos**: Vercel Preview utilizará el mismo proyecto de base de datos alojado (**WalkingWeb**) que Producción, compartiendo temporalmente los usuarios y reportes hasta que se decida crear una instancia aislada de Staging.
+
+### Contrato de Limpieza Automática (Smoke Tests)
+Dado que las pruebas de humo (`test:preview:smoke`) se ejecutarán contra la misma base de datos real, existe un contrato estricto de limpieza:
+- Las pruebas generan usuarios identificables con el prefijo `preview_smoke_`.
+- Un bloque `try/finally` garantiza incondicionalmente la eliminación del usuario mediante la API Administrativa de Auth una vez completada la aserción.
+- Se asegura que tanto el Auth de usuario, como su perfil (`profiles`) y reportes generados (`daily_reports`) queden eliminados por completo (verificando que existan cero filas asociadas tras la ejecución).
+- La prueba terminará con código distinto de cero si la limpieza falla, reportando únicamente un ID abreviado seguro.
 
 ## Migraciones Remotas Ya Aplicadas
 Las siguientes migraciones ya fueron empujadas previamente al proyecto real alojado durante órdenes anteriores:
