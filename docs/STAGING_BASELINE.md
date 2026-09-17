@@ -1,13 +1,14 @@
-# Auditoría de Staging (Revisión 09A / Post-Push 09B / Prep. Smoke Test 10A)
+# Auditoría de Staging (Revisión 09A / Post-Push 09B / Smoke Test 10B)
 
 **Fecha:** 2026-09-16
-**Estado:** Preparación de Smoke Tests Remotos (Auth)
+**Estado:** Smoke Test de Auth Alojado - Superado con Éxito
 
 ## 1. Información del Proyecto
 - **Project Ref:** `unctlwxbttwfumnekctx`
 - **Nombre:** WalkingWeb
 - **Región:** `us-east-2`
 - **Engine:** PostgreSQL 17 (v17.6.1.166)
+- **Registro Público (Enable signup):** Deshabilitado manualmente en Dashboard (Confirmado por Daniel).
 - **Estado Remote:** `ACTIVE_HEALTHY`
 
 ## 2. Estado de las Migraciones
@@ -35,20 +36,26 @@ Se realizaron comprobaciones con la API REST (PostgREST) usando las claves públ
    - La API PostgREST devuelve `404 Not Found` (ocultas en el caché de esquema por falta de privilegios) a los usuarios anónimos que intentan invocar cualquiera de las tres funciones RPC privadas.
    - El bloqueo de acceso anónimo ha sido validado empíricamente, y su configuración está respaldada por una combinación verificable de revocaciones de permisos (`REVOKE ALL`/`REVOKE EXECUTE` de _grants_ públicos) en el motor de PostgreSQL y políticas de Nivel de Fila (RLS) en las tablas subyacentes.
 
-## 4. Requisitos y Plan del Smoke Test (Orden 10A)
-Se ha diseñado el script `supabase/tests/staging/auth_smoke_test.js` para validar la integración con Auth remoto. Este script **requiere autorización explícita** para ejecutarse vía `ALLOW_STAGING_MUTATION=1`.
+## 4. Ejecución del Smoke Test Remoto (Orden 10B)
+El script de prueba de humo `supabase/tests/staging/auth_smoke_test.js` fue autorizado y ejecutado una única vez contra el servidor de staging real, validando los componentes clave de Autenticación, RLS y lógica de negocios.
 
-**Verificaciones Pendientes en el Dashboard de Supabase (por Daniel):**
-Debido a que la configuración no ha sido empujada (`config push`), debes realizar los siguientes ajustes manuales en el Dashboard del proyecto:
-- **ATENCIÓN: El registro público de nuevos usuarios está actualmente HABILITADO en el servidor remoto**. Debes deshabilitarlo manualmente (Authentication -> Providers -> Email -> `Enable signup` = `false`) antes de correr el smoke test.
-- El proveedor de correo electrónico (Email) se encuentra **habilitado** de fábrica y exige confirmación. Esto es correcto y compatible, ya que la API del backend utiliza `email_confirm: true` al provisionar administrativamente las cuentas.
-- *Nota sobre sesiones*: La CLI infiere ausencia de cambios respecto a un entorno por defecto, pero no se validó el valor absoluto de forma directa. Comprueba visualmente que la duración de sesión (`jwt_expiry`) esté establecida a 3600 segundos (1 hora).
+**Resultados de la Ejecución:**
+- **Login de Usuarios Sintéticos:** Dos usuarios sintéticos (ej. `smoke1_...` y `smoke2_...`) fueron aprovisionados administrativamente (con `email_confirm: true`) y lograron iniciar sesión (JWT grant) exitosamente mediante Supabase Client.
+- **Mismo día, mismo total y Aislamiento RLS:** Ambos usuarios insertaron exactamente 5 pasos en la misma fecha (zona horaria La Paz). Al solicitar la lista, cada cliente recibió **exactamente 1 reporte**, validando que el aislamiento simétrico RLS impide el sangrado de datos (*cross-user data bleed*).
+- **Conflicto de Revisión Atómico:** Una modificación concurrente intencionada (forzando una condición de carrera simulada) fue detectada y rechazada correctamente por la función SQL remota, devolviendo el objeto de conflicto esperado (`success: false, conflict: true, current_revision: 1`).
+- **Bloqueo tras Desactivación:** Un usuario fue baneado (desactivado) administrativamente.
+  - Se confirmó que el token pre-existente activo dejó de poder invocar la RPC `set_daily_report` (devolviendo el error defensivo textual `Profile is not active`).
+  - Las lecturas a la base de datos RLS devolvieron arreglos vacíos de forma imperceptible.
+  - Un nuevo intento de inicio de sesión desde un cliente limpio falló exitosamente.
+- **Restablecimiento de Contraseña:** Un usuario sintético cambió su contraseña vía el backend administrativo, comprobándose que la contraseña anterior perdía validez, mientras que la nueva autorizaba satisfactoriamente el inicio de sesión.
+- **Limpieza Completa (Cleanup):** El bloque `finally` erradicó exitosamente ambas cuentas sintéticas utilizando cascada y confirmación manual.
 
-**Plan del Smoke Test (Una vez autorizado):**
-1. Comprobación del Guard: Exigirá `ALLOW_STAGING_MUTATION=1`, rechazará URLs no seguras (HTTP, localhost, subdominios alterados o credenciales embebidas), validando exhaustivamente que el `project ref` coincida con el de staging (`unctlwxbttwfumnekctx.supabase.co`).
-2. Crear Usuarios Sintéticos: Se darán de alta 2 cuentas simétricas usando la utilidad de normalización interna del proyecto.
-3. Operaciones de Login y Guardado Atómico (RLS). Ambos registrarán la misma meta en la misma fecha (zona horaria La Paz) para comprobar la privacidad estricta simétrica.
-4. Prueba de Bloqueo por Desactivación: Se desactiva el perfil de un usuario (baneo remoto). El token ya emitido no "expira" instantáneamente del lado del cliente, sino que las operaciones posteriores (leer tablas o ejecutar la RPC `set_daily_report`) son rechazadas explícitamente por el motor RLS y las sentencias SQL defensivas que consultan el estado "inactivo" del perfil. También se verificará que un login nuevo sea rechazado.
-5. Limpieza automática (*finally block*) estricta que captura errores. Elimina los usuarios de Auth desencadenando un ON DELETE CASCADE, y verifica mediante cliente administrador que no persisten registros huérfanos.
+**Auditoría Post-Prueba (Sólo lectura):**
+Mediante el cliente de administración se comprobó el estado de las tablas remotas luego de la ejecución:
+- `users`: Cero usuarios sintéticos remanentes.
+- `profiles`: 0 filas.
+- `daily_reports`: 0 filas.
+- `rate_limits`: 0 filas.
+La base de datos de staging mantiene su integridad intocable.
 
 *Nota de Seguridad: Este documento ha sido purgado de cadenas de conexión, contraseñas, secretos JWT o identificadores de base de datos internos.*
