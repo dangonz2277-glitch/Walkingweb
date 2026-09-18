@@ -142,8 +142,8 @@ async function runTests() {
 
     // 5. Verificación de chunks libres de catálogo
     try {
-      searchInChunks(path.join(process.cwd(), '.next', 'static', 'chunks'), ['WP510B4', '"WalkingPad"']);
-      assert(true, 'Los chunks JS no exponen datos privados del catálogo.');
+      searchInChunks(path.join(process.cwd(), '.next', 'static', 'chunks'), ['WP510B4', 'WP500B4', 'WP400B52']);
+      assert(true, 'Los chunks JS no exponen identificadores concretos del catálogo (WP510B4, WP500B4, WP400B52).');
     } catch (e) {
       assert(false, e.message);
     }

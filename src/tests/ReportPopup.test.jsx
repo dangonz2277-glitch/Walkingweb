@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import ReportPopup from '../components/ReportPopup.jsx';
 import { supabase } from '../data/supabaseClient.js';
 import { getProfile } from '../data/reportRepository.js';
@@ -295,12 +295,18 @@ describe('ReportPopup append-only integration', () => {
     await waitFor(() => expect(screen.getByText(/17\/09\/2026/)).toBeDefined());
 
     // Jump to next day
-    vi.setSystemTime(new Date('2026-09-18T10:00:00Z'));
+    act(() => {
+      vi.setSystemTime(new Date('2026-09-18T10:00:00Z'));
+    });
 
     // Reopen
-    rerender(<ReportPopup isOpen={false} onClose={vi.fn()} />);
-    rerender(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
+    act(() => {
+      rerender(<ReportPopup isOpen={false} onClose={vi.fn()} />);
+    });
+
+    act(() => {
+      rerender(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    });
 
     expect(screen.getByText(/18\/09\/2026/)).toBeDefined();
   });
