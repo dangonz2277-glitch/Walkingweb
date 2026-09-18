@@ -15,9 +15,9 @@ export function loadDraft(userId) {
   } catch {
     return null;
   }
-  
+
   if (!raw) return null;
-  
+
   try {
     const parsed = JSON.parse(raw);
     const val = validateReportEntry({
@@ -32,15 +32,19 @@ export function loadDraft(userId) {
     return parsed;
   } catch {
     try {
-      const ts = Date.now();
-      const corruptKey = `${key}_corrupted_${ts}`;
+      let suffix = 1;
+      let corruptKey = `${key}_corrupted_${suffix}`;
+      while (localStorage.getItem(corruptKey) !== null) {
+        suffix++;
+        corruptKey = `${key}_corrupted_${suffix}`;
+      }
       localStorage.setItem(corruptKey, raw);
       const verify = localStorage.getItem(corruptKey);
       if (verify === raw) {
         localStorage.removeItem(key);
       }
     } catch {
-      // Si falla respaldo, conservar original.
+      // Si falla respaldo, conservar original sin borrarlo.
     }
     return null;
   }
@@ -48,16 +52,30 @@ export function loadDraft(userId) {
 
 export function saveDraft(userId, draft) {
   if (!userId) return { success: false, error: 'No user ID' };
-  
-  if (draft.calls === 0 && draft.emails === 0 && draft.liveChats === 0) {
+
+  const val = validateReportEntry({
+    calls: draft.calls,
+    emails: draft.emails,
+    liveChats: draft.liveChats
+  });
+
+  if (!val.valid) {
+    return { success: false, error: val.error };
+  }
+
+  if (typeof draft.clientEntryId !== 'string' || !UUID_REGEX.test(draft.clientEntryId)) {
+    return { success: false, error: 'UUID inválido' };
+  }
+
+  if (val.data.total === 0) {
     return clearDraft(userId);
   }
 
   try {
     localStorage.setItem(getDraftKey(userId), JSON.stringify({
-      calls: draft.calls,
-      emails: draft.emails,
-      liveChats: draft.liveChats,
+      calls: val.data.calls,
+      emails: val.data.emails,
+      liveChats: val.data.liveChats,
       clientEntryId: draft.clientEntryId
     }));
     return { success: true };

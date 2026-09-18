@@ -1,10 +1,10 @@
 export function validateReportEntry({ calls, emails, liveChats }) {
   const isValidInt = (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 9999;
-  
+
   if (!isValidInt(calls) || !isValidInt(emails) || !isValidInt(liveChats)) {
     return { valid: false, error: 'Los valores deben ser números enteros entre 0 y 9999.' };
   }
-  
+
   return {
     valid: true,
     data: {

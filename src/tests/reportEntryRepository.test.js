@@ -37,12 +37,12 @@ describe('reportEntryRepository', () => {
     expect(res.success).toBe(false);
     expect(res.error).toBe('El servidor no devolvió datos al guardar.');
   });
-  
+
   it('listRecentReportEntries normalizes list and handles null', async () => {
     const mockOrder = vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: null, error: null }) });
     const mockSelect = vi.fn().mockReturnValue({ order: mockOrder });
     supabase.from.mockReturnValue({ select: mockSelect });
-    
+
     const res = await listRecentReportEntries();
     expect(res.success).toBe(true);
     expect(res.data).toEqual([]);

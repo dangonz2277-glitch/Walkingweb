@@ -19,15 +19,15 @@ export async function appendReportEntry({ calls, emails, liveChats, clientEntryI
       p_live_chats: val.data.liveChats,
       p_client_entry_id: clientEntryId
     });
-    
+
     if (error) {
       throw error;
     }
-    
+
     if (!data) {
       throw new Error('El servidor no devolvió datos al guardar.');
     }
-    
+
     return { success: true, data: normalizeReportEntryData(data) };
   } catch (err) {
     return { success: false, error: err.message };
@@ -41,11 +41,11 @@ export async function listRecentReportEntries() {
       .select('id, calls, emails, live_chats, total, work_date, created_at')
       .order('created_at', { ascending: false })
       .limit(30);
-      
+
     if (error) {
       throw error;
     }
-    
+
     return { success: true, data: (data || []).map(normalizeReportEntryData) };
   } catch (err) {
     return { success: false, error: err.message };

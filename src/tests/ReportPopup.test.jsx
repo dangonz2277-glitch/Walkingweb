@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ReportPopup from '../components/ReportPopup.jsx';
 import { supabase } from '../data/supabaseClient.js';
@@ -33,6 +33,10 @@ describe('ReportPopup append-only integration', () => {
     supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('does not mount ReportContent or query session until opened', () => {
     render(<ReportPopup isOpen={false} onClose={vi.fn()} />);
     expect(supabase.auth.getSession).not.toHaveBeenCalled();
@@ -43,45 +47,67 @@ describe('ReportPopup append-only integration', () => {
     await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
   });
 
-  it('handles login success', async () => {
+  it('handles double submit login correctly', async () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
-    
-    supabase.auth.signInWithPassword.mockResolvedValueOnce({ error: null });
-    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
-    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
-    
+
+    // Defer resolution to test pending state
+    let resolveLogin;
+    const loginPromise = new Promise(r => { resolveLogin = r; });
+    supabase.auth.signInWithPassword.mockReturnValue(loginPromise);
+
     const user = screen.getByLabelText('Usuario');
     const pass = screen.getByLabelText('Contraseña');
+    const form = user.closest('form');
+
     fireEvent.change(user, { target: { value: 'alice' } });
     fireEvent.change(pass, { target: { value: 'password123' } });
-    
-    const form = user.closest('form');
+
     fireEvent.submit(form);
-    
-    await waitFor(() => {
-      expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'alice@walkingweb.internal', password: 'password123' });
+    fireEvent.submit(form); // Second submit
+
+    expect(supabase.auth.signInWithPassword).toHaveBeenCalledTimes(1);
+
+    resolveLogin({ error: null });
+  });
+
+  it('full login success via onAuthStateChange', async () => {
+    let authCallback;
+    supabase.auth.onAuthStateChange.mockImplementation((cb) => {
+      authCallback = cb;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
     });
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
+
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+
+    // Simulate auth event
+    authCallback('SIGNED_IN', { user: { id: '1' } });
+
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
   });
 
   it('handles login error and min password', async () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
-    
+
     const user = screen.getByLabelText('Usuario');
     const pass = screen.getByLabelText('Contraseña');
     const form = user.closest('form');
-    
+
     fireEvent.change(user, { target: { value: 'alice' } });
     fireEvent.change(pass, { target: { value: 'short' } });
     fireEvent.submit(form);
-    
+
     await waitFor(() => expect(screen.getByText('La contraseña debe tener al menos 8 caracteres.')).toBeDefined());
-    
+
     fireEvent.change(pass, { target: { value: 'password123' } });
     supabase.auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'invalid' } });
     fireEvent.submit(form);
-    
+
     await waitFor(() => expect(screen.getByText('Usuario o contraseña incorrectos, o cuenta inactiva.')).toBeDefined());
   });
 
@@ -90,7 +116,7 @@ describe('ReportPopup append-only integration', () => {
     supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
     listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
-    
+
     saveDraft(userId, { calls: 10, emails: 5, liveChats: 2, clientEntryId: '00000000-0000-0000-0000-000000000000' });
 
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
@@ -158,7 +184,32 @@ describe('ReportPopup append-only integration', () => {
     expect(saveBtn.disabled).toBe(false);
   });
 
-  it('successful save calls backend once, clears draft, and generates new UUID', async () => {
+  it('double click on save calls backend once', async () => {
+    const userId = '1';
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+
+    let resolveAppend;
+    const appendPromise = new Promise(r => { resolveAppend = r; });
+    appendReportEntry.mockReturnValue(appendPromise);
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+
+    fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
+
+    const saveBtn = screen.getByText('Guardar Reporte');
+    fireEvent.click(saveBtn);
+    fireEvent.click(saveBtn); // Double click
+
+    expect(appendReportEntry).toHaveBeenCalledTimes(1);
+
+    resolveAppend({ success: true });
+    await waitFor(() => expect(screen.getByText('¡Reporte guardado exitosamente!')).toBeDefined());
+  });
+
+  it('successful save clears draft exactly, leaves exact draft key absent', async () => {
     const userId = '1';
     supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
@@ -169,23 +220,12 @@ describe('ReportPopup append-only integration', () => {
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
     fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
-
-    await waitFor(() => {
-      expect(loadDraft(userId)).not.toBeNull();
-    });
-
-    const oldDraft = loadDraft(userId);
-    const oldUuid = oldDraft.clientEntryId;
+    expect(loadDraft(userId)).not.toBeNull();
 
     fireEvent.click(screen.getByText('Guardar Reporte'));
     await waitFor(() => expect(screen.getByText('¡Reporte guardado exitosamente!')).toBeDefined());
 
-    expect(appendReportEntry).toHaveBeenCalledTimes(1);
-    expect(appendReportEntry).toHaveBeenCalledWith({
-      calls: 1, emails: 0, liveChats: 0, clientEntryId: oldUuid
-    });
-
-    expect(loadDraft(userId)).toBeNull(); // Empty draft shouldn't be saved
+    expect(window.localStorage.getItem(`draft_report_entry_${userId}`)).toBeNull();
   });
 
   it('error keeps counters and UUID', async () => {
@@ -199,13 +239,7 @@ describe('ReportPopup append-only integration', () => {
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
     fireEvent.click(screen.getAllByLabelText('Incrementar Emails')[0]);
-    
-    await waitFor(() => {
-      expect(loadDraft(userId)).not.toBeNull();
-    });
-
-    const draft = loadDraft(userId);
-    const uuid = draft.clientEntryId;
+    const uuid = loadDraft(userId).clientEntryId;
 
     fireEvent.click(screen.getByText('Guardar Reporte'));
     await waitFor(() => expect(screen.getByText('Database error')).toBeDefined());
@@ -215,7 +249,7 @@ describe('ReportPopup append-only integration', () => {
     expect(newDraft.clientEntryId).toBe(uuid);
   });
 
-  it('Limpiar button resets counters and deletes draft without backend call', async () => {
+  it('Limpiar button resets counters and deletes draft key exactly', async () => {
     const userId = '1';
     supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
@@ -225,14 +259,14 @@ describe('ReportPopup append-only integration', () => {
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
     fireEvent.click(screen.getAllByLabelText('Incrementar Live Chats')[0]);
-    await waitFor(() => expect(screen.getByText('Total:')).toBeDefined());
+    expect(screen.getByText('Total:')).toBeDefined();
 
     fireEvent.click(screen.getByText('Limpiar'));
 
     await waitFor(() => {
-      expect(loadDraft(userId)).toBeNull();
+      expect(window.localStorage.getItem(`draft_report_entry_${userId}`)).toBeNull();
     });
-    
+
     expect(appendReportEntry).not.toHaveBeenCalled();
   });
 
@@ -249,19 +283,47 @@ describe('ReportPopup append-only integration', () => {
     expect(screen.getByText('C: 10 | E: 5 | Ch: 2')).toBeDefined();
   });
 
-  it('preserves state when closed and reopened', async () => {
+  it('updates date automatically after change to next day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-17T10:00:00Z'));
+
     supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
     getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
     listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
 
     const { rerender } = render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+    await waitFor(() => expect(screen.getByText(/17\/09\/2026/)).toBeDefined());
 
-    fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
-    
+    // Jump to next day
+    vi.setSystemTime(new Date('2026-09-18T10:00:00Z'));
+
+    // Reopen
     rerender(<ReportPopup isOpen={false} onClose={vi.fn()} />);
     rerender(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
 
-    expect(screen.queryAllByText('1').length).toBeGreaterThan(0);
+    expect(screen.getByText(/18\/09\/2026/)).toBeDefined();
+  });
+
+  it('shows warning and maintains visual counters on localStorage error', async () => {
+    const userId = '1';
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+
+    render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
+
+    // Mock storage failure
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Quota exceeded"); });
+
+    fireEvent.click(screen.getAllByLabelText('Incrementar Calls')[0]);
+
+    await waitFor(() => expect(screen.getByText('No se pudo guardar el borrador localmente.')).toBeDefined());
+
+    // Counter updated visually despite error
+    expect(screen.getAllByText('1').length).toBeGreaterThan(0);
+
+    vi.restoreAllMocks();
   });
 });

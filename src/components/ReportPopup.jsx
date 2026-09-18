@@ -23,7 +23,7 @@ export default function ReportPopup({ isOpen, onClose, triggerRef }) {
 function Counter({ label, value, onChange, disabled }) {
   const handleDec = () => onChange(Math.max(0, value - 1));
   const handleInc = () => onChange(Math.min(9999, value + 1));
-  
+
   return (
     <div className="counter-field">
       <label>{label}</label>
@@ -50,8 +50,10 @@ function ReportContent() {
       setLoadingSession(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT' || _event === 'TOKEN_REFRESHED' || _event === 'INITIAL_SESSION') {
+         setSession(newSession);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -59,6 +61,7 @@ function ReportContent() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setLoginError('');
     setIsSubmitting(true);
     if (password.length < 8) {
@@ -111,23 +114,23 @@ function ActiveReport({ session }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [storageWarning, setStorageWarning] = useState('');
-  
+
   const [calls, setCalls] = useState(0);
   const [emails, setEmails] = useState(0);
   const [liveChats, setLiveChats] = useState(0);
   const [clientEntryId, setClientEntryId] = useState(() => crypto.randomUUID());
-  
+
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState([]);
   const [savedNotice, setSavedNotice] = useState(false);
 
   useEffect(() => {
     let active = true;
-    
+
     const loadData = async () => {
       setLoading(true);
       setError('');
-      
+
       const profRes = await getProfile();
       if (!active) return;
       if (!profRes.success) {
@@ -160,20 +163,46 @@ function ActiveReport({ session }) {
         setLoading(false);
       }
     };
-    
+
     loadData();
     return () => { active = false; };
   }, [session.user.id]);
 
   useEffect(() => {
-    if (!profile) return;
-    const res = saveDraft(session.user.id, { calls, emails, liveChats, clientEntryId });
-    if (res && !res.success) {
-      setTimeout(() => setStorageWarning(res.error), 0);
-    } else {
-      setTimeout(() => setStorageWarning(''), 0);
+    let timerId;
+    if (savedNotice) {
+      timerId = setTimeout(() => setSavedNotice(false), 3000);
     }
-  }, [calls, emails, liveChats, clientEntryId, profile, session.user.id]);
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [savedNotice]);
+
+  const updateDraft = (newCalls, newEmails, newLiveChats, newClientEntryId) => {
+    if (!profile) return;
+    const res = saveDraft(session.user.id, {
+      calls: newCalls,
+      emails: newEmails,
+      liveChats: newLiveChats,
+      clientEntryId: newClientEntryId
+    });
+    setStorageWarning(res && !res.success ? res.error : '');
+  };
+
+  const handleCallsChange = (val) => {
+    setCalls(val);
+    updateDraft(val, emails, liveChats, clientEntryId);
+  };
+
+  const handleEmailsChange = (val) => {
+    setEmails(val);
+    updateDraft(calls, val, liveChats, clientEntryId);
+  };
+
+  const handleLiveChatsChange = (val) => {
+    setLiveChats(val);
+    updateDraft(calls, emails, val, clientEntryId);
+  };
 
   const handleLogout = async () => {
     const { error: err } = await supabase.auth.signOut();
@@ -184,19 +213,18 @@ function ActiveReport({ session }) {
     setCalls(0);
     setEmails(0);
     setLiveChats(0);
-    setClientEntryId(crypto.randomUUID());
+    const newId = crypto.randomUUID();
+    setClientEntryId(newId);
     const res = clearDraft(session.user.id);
-    if (res && !res.success) {
-      setTimeout(() => setStorageWarning(res.error), 0);
-    } else {
-      setTimeout(() => setStorageWarning(''), 0);
-    }
+    setStorageWarning(res && !res.success ? res.error : '');
   };
 
   const handleSave = async () => {
+    if (saving) return;
+
     setError('');
     setSavedNotice(false);
-    
+
     const val = validateReportEntry({ calls, emails, liveChats });
     if (!val.valid) {
       setError(val.error);
@@ -208,7 +236,7 @@ function ActiveReport({ session }) {
     }
 
     setSaving(true);
-    
+
     const res = await appendReportEntry({
       calls: val.data.calls,
       emails: val.data.emails,
@@ -218,19 +246,15 @@ function ActiveReport({ session }) {
 
     if (res.success) {
       setSavedNotice(true);
-      setTimeout(() => setSavedNotice(false), 3000);
-      
       setCalls(0);
       setEmails(0);
       setLiveChats(0);
-      setClientEntryId(crypto.randomUUID());
+      const newId = crypto.randomUUID();
+      setClientEntryId(newId);
+
       const clrRes = clearDraft(session.user.id);
-      if (clrRes && !clrRes.success) {
-        setStorageWarning(clrRes.error);
-      } else {
-        setTimeout(() => setStorageWarning(''), 0);
-      }
-      
+      setStorageWarning(clrRes && !clrRes.success ? clrRes.error : '');
+
       const histRes = await listRecentReportEntries();
       if (histRes.success) {
         setHistory(histRes.data);
@@ -258,19 +282,19 @@ function ActiveReport({ session }) {
           <button onClick={handleLogout} className="logout-btn">Cerrar Sesión</button>
         </div>
       </header>
-      
+
       {error && <p className="error-alert" role="alert">{error}</p>}
       {storageWarning && <p className="warning-alert" role="alert">{storageWarning}</p>}
-      
+
       {profile?.status === 'active' && (
         <>
           <div className="report-form">
             <p><strong>Fecha Laboral:</strong> {formatDateLaPaz()}</p>
-            
+
             <div className="report-counters-group">
-              <Counter label="Calls" value={calls} onChange={setCalls} disabled={saving} />
-              <Counter label="Emails" value={emails} onChange={setEmails} disabled={saving} />
-              <Counter label="Live Chats" value={liveChats} onChange={setLiveChats} disabled={saving} />
+              <Counter label="Calls" value={calls} onChange={handleCallsChange} disabled={saving} />
+              <Counter label="Emails" value={emails} onChange={handleEmailsChange} disabled={saving} />
+              <Counter label="Live Chats" value={liveChats} onChange={handleLiveChatsChange} disabled={saving} />
             </div>
 
             <p className="report-total"><strong>Total:</strong> {displayTotal}</p>
@@ -286,7 +310,7 @@ function ActiveReport({ session }) {
 
             {savedNotice && <div className="success-notice-block" role="status">¡Reporte guardado exitosamente!</div>}
           </div>
-          
+
           <div className="report-history">
             <h3>Historial de Reportes</h3>
             {history.length === 0 ? <p>No hay reportes recientes.</p> : (
