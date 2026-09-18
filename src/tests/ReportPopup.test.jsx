@@ -125,7 +125,7 @@ describe('ReportPopup append-only integration', () => {
     expect(screen.getByText('10')).toBeDefined();
     expect(screen.getByText('5')).toBeDefined();
     expect(screen.getByText('2')).toBeDefined();
-    expect(screen.getByText('Total:')).toBeDefined();
+    expect(screen.getByText('Total de esta entrada')).toBeDefined();
     expect(screen.getByText('17')).toBeDefined();
   });
 
@@ -259,9 +259,9 @@ describe('ReportPopup append-only integration', () => {
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
     fireEvent.click(screen.getAllByLabelText('Incrementar Live Chats')[0]);
-    expect(screen.getByText('Total:')).toBeDefined();
+    expect(screen.getByText('Total de esta entrada')).toBeDefined();
 
-    fireEvent.click(screen.getByText('Limpiar'));
+    fireEvent.click(screen.getByText('Cancelar / Limpiar'));
 
     await waitFor(() => {
       expect(window.localStorage.getItem(`draft_report_entry_${userId}`)).toBeNull();
@@ -280,7 +280,7 @@ describe('ReportPopup append-only integration', () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeDefined());
 
-    expect(screen.getByText('C: 10 | E: 5 | Ch: 2')).toBeDefined();
+    expect(screen.getByText('Calls: 10 · Emails: 5 · Live Chats: 2')).toBeDefined();
   });
 
   it('updates date automatically after change to next day', async () => {

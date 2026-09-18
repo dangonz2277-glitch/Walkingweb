@@ -14,7 +14,7 @@ export default function ReportPopup({ isOpen, onClose, triggerRef }) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Mi Reporte" triggerRef={triggerRef}>
+    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Mi Reporte" triggerRef={triggerRef} className="report-modal report-workspace-modal">
       {hasOpened && <ReportContent />}
     </Modal>
   );
@@ -25,14 +25,14 @@ function Counter({ label, value, onChange, disabled }) {
   const handleInc = () => onChange(Math.min(9999, value + 1));
 
   return (
-    <div className="counter-field">
-      <label>{label}</label>
+    <section className="counter-field" aria-label={label}>
+      <h3><span className="channel-dot" aria-hidden="true" />{label}</h3>
+      <output className="counter-value" aria-label={`Cantidad de ${label}`} aria-live="polite">{value}</output>
       <div className="counter-controls">
         <button type="button" aria-label={`Reducir ${label}`} onClick={handleDec} disabled={disabled || value <= 0}>-1</button>
-        <span className="counter-value">{value}</span>
-        <button type="button" aria-label={`Incrementar ${label}`} onClick={handleInc} disabled={disabled || value >= 9999}>+1</button>
+        <button type="button" className="counter-increment" aria-label={`Incrementar ${label}`} onClick={handleInc} disabled={disabled || value >= 9999}>+1 {label === 'Calls' ? 'Call' : label === 'Emails' ? 'Email' : 'Chat'}</button>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -88,14 +88,16 @@ function ReportContent() {
 
   if (!session) {
     return (
-      <div className="auth-form">
+      <div className="auth-form report-login">
+        <p className="eyebrow">TU ACTIVIDAD DE SOPORTE</p>
         <h2>Ingresar a Mi Reporte</h2>
+        <p className="popup-description">Registra tus llamadas, correos y chats en un solo lugar.</p>
         <form onSubmit={handleLogin}>
           <label>Usuario
-            <input type="text" value={username} onChange={e => setUsername(e.target.value)} required disabled={isSubmitting}/>
+            <input type="text" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required disabled={isSubmitting}/>
           </label>
           <label>Contraseña
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required disabled={isSubmitting}/>
+            <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required disabled={isSubmitting}/>
           </label>
           {loginError && <p className="error-alert" role="alert">{loginError}</p>}
           <button type="submit" disabled={isSubmitting}>
@@ -276,7 +278,7 @@ function ActiveReport({ session }) {
   return (
     <div className="active-report">
       <header className="report-header">
-        <h2>Mi Reporte</h2>
+        <div><p className="eyebrow">TU ACTIVIDAD DE SOPORTE</p><h2>Mi Reporte</h2></div>
         <div className="profile-info">
           <span>{profile?.display_name || 'Perfil'}</span>
           <button onClick={handleLogout} className="logout-btn">Cerrar Sesión</button>
@@ -289,7 +291,7 @@ function ActiveReport({ session }) {
       {profile?.status === 'active' && (
         <>
           <div className="report-form">
-            <p><strong>Fecha Laboral:</strong> {formatDateLaPaz()}</p>
+            <div className="report-entry-heading"><p className="report-date"><strong>Fecha Laboral:</strong> {formatDateLaPaz()}</p><span className="draft-badge">Borrador</span></div>
 
             <div className="report-counters-group">
               <Counter label="Calls" value={calls} onChange={handleCallsChange} disabled={saving} />
@@ -297,14 +299,15 @@ function ActiveReport({ session }) {
               <Counter label="Live Chats" value={liveChats} onChange={handleLiveChatsChange} disabled={saving} />
             </div>
 
-            <p className="report-total"><strong>Total:</strong> {displayTotal}</p>
+            <div className="report-total"><div><strong>Total de esta entrada</strong><p>Calls + Emails + Live Chats</p></div><output aria-label="Total de esta entrada" aria-live="polite">{displayTotal}</output></div>
+            <p className="report-save-hint">Cada guardado añade una nueva entrada al historial y reinicia los contadores.</p>
 
             <div className="report-actions">
-              <button onClick={handleSave} disabled={saving || isTotalZero || !val.valid}>
+              <button className="report-save-button" onClick={handleSave} disabled={saving || isTotalZero || !val.valid}>
                 {saving ? 'Guardando...' : 'Guardar Reporte'}
               </button>
               <button onClick={handleClear} disabled={saving} className="clear-btn">
-                Limpiar
+                Cancelar / Limpiar
               </button>
             </div>
 
@@ -312,13 +315,14 @@ function ActiveReport({ session }) {
           </div>
 
           <div className="report-history">
-            <h3>Historial de Reportes</h3>
-            {history.length === 0 ? <p>No hay reportes recientes.</p> : (
+            <div className="report-history-heading"><h3>Historial de Reportes</h3><span>Últimas 30 entradas</span></div>
+            {history.length === 0 ? <p className="report-empty">No hay reportes recientes.</p> : (
               <ul>
                 {history.map(h => (
                   <li key={h.id}>
                     <span className="hist-date">{formatDateTimeLaPaz(h.createdAt)}</span>
-                    <span className="hist-stats">C: {h.calls} | E: {h.emails} | Ch: {h.liveChats}</span>
+                    <span className="hist-stats">Calls: {h.calls} · Emails: {h.emails} · Live Chats: {h.liveChats}</span>
+                    <span className="hist-total">{h.total ?? h.calls + h.emails + h.liveChats} <small>total</small></span>
                   </li>
                 ))}
               </ul>
