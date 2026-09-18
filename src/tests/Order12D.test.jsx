@@ -76,7 +76,8 @@ describe('Order 12D - Parameterized Modals & Close', () => {
         dialog.dispatchEvent(cancelEvent);
       });
 
-      expect(document.body.classList.contains('scroll-lock')).toBe(false);
+      // Editing now returns to the product dialog, which keeps the background locked.
+      expect(document.body.classList.contains('scroll-lock')).toBe(Boolean(isEdit));
       expect(document.activeElement).toBe(triggerBtn);
     });
   });

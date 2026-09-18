@@ -58,3 +58,53 @@ article.card:hover{border-color:#aac4b5;box-shadow:var(--shadow)}
 .skip-link:focus{top:12px}
 @media(max-width:650px){.site-header{padding:24px 20px}.workspace-label{display:none}.site-nav{gap:2px;top:8px}.site-nav button{padding:8px 9px;font-size:13px}.catalog-main{padding:32px 20px 48px}.catalog-intro{margin-bottom:26px}.controls>input{flex-basis:100%}.tabs{flex-wrap:nowrap;overflow-x:auto;padding:4px;margin-inline:-4px}.tabs button{flex-shrink:0}.card{padding:20px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+/* Focused workspaces: solid reading surfaces, glass only around the active layer. */
+.guide-search{position:sticky;top:-32px;z-index:1;background:#fafcf9;padding:16px 52px 12px 0;border-bottom:1px solid var(--line)}
+.guide-search .result-count{margin:8px 0 0}
+.knowledge-modal .close-btn{z-index:3}
+.guide-layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:28px;margin-top:20px;align-items:start}
+.guide-index{position:sticky;top:100px;max-height:55dvh;overflow:auto;padding:4px}
+.guide-index button{display:block;width:100%;text-align:left;border:0;background:transparent;font-size:13px;padding:10px;line-height:1.4}
+.guide-index button:hover{background:#e7efe9}
+.guide-answers h3{scroll-margin-top:130px;outline-offset:4px}
+.guide-answers>section+section{margin-top:32px}
+.guide-empty{padding:32px 0}
+.settings-actions{display:flex;gap:12px;flex-wrap:wrap;padding:20px 0;border-block:1px solid var(--line)}
+.settings-help{font-size:13px;color:var(--muted);line-height:1.7}
+.product-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.product-form>h2,.product-form>h3,.product-form>p,.product-form>.link-row,.product-form>.error-notice,.product-form>button{grid-column:1/-1}
+.product-form>label{font-size:13px;font-weight:600}
+.product-form input,.product-form select{font-size:16px;font-weight:400;min-width:0}
+.product-form>button[type=submit]{background:var(--ink);color:white;position:sticky;bottom:0;box-shadow:0 -8px 20px #fafcf9}
+@media(max-width:650px){.guide-layout{grid-template-columns:1fr;gap:12px}.guide-index{position:static;max-height:180px;background:#edf3ef;border-radius:12px;padding:12px}.guide-search{top:-24px}.product-form{grid-template-columns:1fr}}
+.site-header{padding-block:18px}
+.catalog-intro h1{font-size:clamp(28px,3vw,40px)}
+.catalog-intro{margin-bottom:20px}
+.catalog-intro>p:last-child{margin-bottom:0}
+.report-modal{width:min(92vw,640px);max-width:640px;max-height:88dvh;border:1px solid #ffffffd9;border-radius:24px;background:#fafcf9;color:var(--ink);box-shadow:0 30px 100px #102b3940;overflow:auto;overscroll-behavior:contain}
+.report-modal[open]{animation:panel-enter .28s ease-out}
+.product-modal[open]{animation:none}
+.report-modal::backdrop{background:#15332d66;backdrop-filter:blur(9px)}
+.report-modal-content{padding:32px}
+.report-modal .close-btn{position:sticky;float:right;top:0;margin:-16px -16px 0 8px;z-index:1;width:44px;background:#edf3ef;border:1px solid var(--line);border-radius:50%;color:var(--ink)}
+.report-modal h2{font-size:26px;overflow-wrap:anywhere}
+.knowledge-modal,.product-modal{width:min(92vw,900px);max-width:900px}
+.product-modal .detail{border:0;padding-top:0}
+.product-modal .spec-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.product-modal .spec-grid>div{padding:16px}
+.product-modal .detail>a{display:block;margin-top:12px}
+.popup-description{color:var(--muted);margin-bottom:24px}
+.knowledge-search,.knowledge-modal input{width:100%}
+.knowledge-modal details{background:white;padding:16px;border-radius:12px;border-color:var(--line)}
+.knowledge-modal summary,.product-modal summary{line-height:1.6}
+@keyframes panel-enter{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+@media(max-width:650px){
+ .site-nav{flex-wrap:wrap;justify-content:center;gap:2px;max-width:calc(100% - 24px)}
+ .site-nav button{padding:8px 10px}
+ .catalog-main{padding-top:20px}
+ .report-modal,.knowledge-modal,.product-modal{width:100%;max-width:none;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}
+ .report-modal-content{padding:24px 20px max(24px,env(safe-area-inset-bottom))}
+ .report-modal h2{font-size:24px}
+ .product-modal .spec-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+}

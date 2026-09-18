@@ -19,6 +19,7 @@ export default function Catalog({ notify = () => {} }) {
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
   const addBtnRef = useRef(null);
+  const productTriggerRef = useRef(null);
   const [editTrigger, setEditTrigger] = useState(null);
 
   useEffect(() => {
@@ -125,13 +126,15 @@ export default function Catalog({ notify = () => {} }) {
           const identity = getProductIdentity(p);
           return (
           <article className="card" key={`${p.model || p.name}-${i}`}>
-            <button className="card-title" onClick={() => setExpandedIdentity(expandedIdentity === identity ? null : identity)} aria-expanded={expandedIdentity === identity}>
+            <button className="card-title" onClick={event => { productTriggerRef.current = event.currentTarget; setExpandedIdentity(identity); }} aria-haspopup="dialog" aria-expanded={expandedIdentity === identity}>
               <strong>{p.name}</strong> <span>{p.model}</span>
             </button>
             <small>{p.cat}{p.isOverride ? ' · Override Local' : (p.isCustom ? ' · Local' : '')}</small>
             <p>{p.speed} · {p.capacity}</p>
 
             {expandedIdentity === identity && (
+              <Modal isOpen={!editing} animateFromTrigger dismissOnBackdrop onClose={() => setExpandedIdentity(null)} triggerRef={productTriggerRef} title={`${p.name} · ${p.model}`} className="report-modal product-modal">
+              <p className="popup-description">{p.cat}</p>
               <div className="detail">
                 <div className="action-row">
                   <button onClick={(e) => startEdit(p, e)}>Editar</button>
@@ -158,6 +161,7 @@ export default function Catalog({ notify = () => {} }) {
                   </a>
                 ))}
               </div>
+              </Modal>
             )}
           </article>
           );
@@ -166,22 +170,8 @@ export default function Catalog({ notify = () => {} }) {
 
       {!filtered.length && <p>Sin resultados.</p>}
 
-      {filteredGeneralIssues.length > 0 && (
-        <section>
-          <h2>Problemas generales</h2>
-          <div className="grid">
-            {filteredGeneralIssues.map((issue, i) => (
-              <details className="card" key={i}>
-                <summary>{issue.code} · {issue.name}</summary>
-                <p className="preline">{issue.fix}</p>
-              </details>
-            ))}
-          </div>
-        </section>
-      )}
-
       <Modal isOpen={editing} onClose={() => setEditing(false)} triggerRef={editTrigger} ariaLabelledBy="product-form-title">
-        <form className="auth-form" onSubmit={save}>
+        <form className="auth-form product-form" onSubmit={save}>
           <h2 id="product-form-title">{form.id || form.baseId ? 'Editar producto' : 'Nuevo producto'}</h2>
           {formError && <div role="alert" className="error-notice" style={{color: 'red', marginBottom: '1rem'}}>{formError}</div>}
 

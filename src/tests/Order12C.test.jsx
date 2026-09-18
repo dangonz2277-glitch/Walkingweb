@@ -34,11 +34,17 @@ describe('Order 12C - Frontend fixes', () => {
     
     fireEvent.change(input, { target: { value: 'SAFE' } });
     await waitFor(() => expect(screen.queryByText((content) => content.includes("productos") && content.includes("| 2 problemas generales"))).toBeTruthy());
-    expect(screen.getByText('SAFE · Display shows SAFE')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Problemas generales' }));
+    fireEvent.change(screen.getByLabelText('Buscar problemas generales'), { target: { value: 'SAFE' } });
+    expect(screen.getByText('2 resultados')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
     
     fireEvent.change(input, { target: { value: 'No power' } });
     await waitFor(() => expect(screen.queryByText((content) => content.includes("productos") && content.includes("| 1 problema general"))).toBeTruthy());
-    expect(screen.getByText("No power · Machine won't turn on")).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Problemas generales' }));
+    fireEvent.change(screen.getByLabelText('Buscar problemas generales'), { target: { value: 'No power' } });
+    expect(screen.getByText('1 resultados')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
 
     fireEvent.change(input, { target: { value: 'E05' } });
     await waitFor(() => expect(screen.queryByText((content) => content.includes("28 productos"))).toBeTruthy());

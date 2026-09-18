@@ -1,5 +1,18 @@
 # Plan de acción UI/UX del frontend
 
+## Avance de la segunda etapa
+
+- Uso confirmado: exclusivamente soporte técnico; el flujo comienza siempre por encontrar el modelo.
+- Encabezado compacto para dar prioridad al catálogo.
+- Problemas generales trasladados del pie a un popup con acceso permanente en navegación y búsqueda independiente.
+- Detalles de modelos presentados en un diálogo amplio con animación de entrada desde la card; cuadrícula estable y retorno al catálogo al cerrar.
+- Guía ampliada; sistema común de popups con fondo atenuado y desenfocado, superficies legibles y pantalla completa en móvil.
+- Edición de producto sustituye temporalmente al detalle; al cerrar vuelve al detalle conservando el bloqueo de fondo.
+- Verificación local: 119 pruebas, lint y compilación aprobados; revisión visual en escritorio y móvil de 390 px.
+- Refinamientos completados: cierre animado hacia la card, retorno de foco sin desplazar el catálogo, índice por secciones de Guía, búsqueda fija con estado vacío y formularios responsive.
+- Mi Reporte ya utiliza el flujo append-only publicado: Calls, Emails y Live Chats se guardan como entradas independientes con borrador local e historial reciente. Su pulido visual continuará dentro de este plan sin modificar el contrato del backend.
+- Esta entrega permanece local hasta una nueva autorización de commit/push.
+
 ## Estado
 
 - **Fase actual:** auditoría UI/UX y preparación de órdenes de implementación.

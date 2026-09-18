@@ -29,15 +29,16 @@ export default function SettingsPopup({ isOpen, onClose, triggerRef, onImportSuc
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Ajustes" triggerRef={triggerRef}>
-      <p>Gestión de datos locales y configuraciones.</p>
+      <p className="popup-description">Conserva una copia de tus productos y cambios locales.</p>
       
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+      <div className="settings-actions">
         <button onClick={handleExport}>Exportar respaldo</button>
         <label className="import-button">
           Importar respaldo
           <input type="file" accept=".json,application/json" onChange={upload} />
         </label>
       </div>
+      <p className="settings-help">Los respaldos corresponden a los datos locales de este navegador. No incluyen los reportes de tu cuenta.</p>
 
       {message && <div role={message.startsWith('Error') ? 'alert' : 'status'} className="notice" style={{ marginTop: '16px', marginLeft: 0, marginRight: 0 }}>{message}</div>}
     </Modal>

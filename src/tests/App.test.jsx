@@ -23,7 +23,7 @@ describe('interfaz React', () => {
     expect(screen.getByText(/42 productos/)).toBeTruthy();
     const issue = getIssues(first.issueKey)[0];
     fireEvent.change(screen.getByLabelText('Buscar catálogo'), { target: { value: issue.code } });
-    expect(screen.getByText(/productos/)).toBeTruthy();
+    expect(screen.getByText(/^\d+ productos \|/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Buscar catálogo'), { target: { value: first.model } });
     fireEvent.click(screen.getByRole('button', { name: new RegExp(first.name) }));
     expect(screen.getByText('Errores conocidos')).toBeTruthy();
@@ -102,7 +102,7 @@ describe('interfaz React', () => {
     fireEvent.click(screen.getByText('Guardar producto'));
     
     // Debería encontrarse ahora el X21 Pro y el badge de Override Local
-    expect(screen.getByText(/X21 Pro/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'X21 Pro · —' })).toBeTruthy();
     expect(screen.getByText(/Override Local/)).toBeTruthy();
     
     // Limpiar búsqueda
