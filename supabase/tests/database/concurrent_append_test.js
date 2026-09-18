@@ -11,13 +11,13 @@ async function runConcurrentAppendRace() {
 
   const adminClient = new Client({ connectionString: CONNECTION_STRING });
   const clients = Array.from({ length: 5 }, () => new Client({ connectionString: CONNECTION_STRING }));
-  
+
   const connectedClients = [];
 
   try {
     await adminClient.connect();
     connectedClients.push(adminClient);
-    
+
     for (const c of clients) {
       await c.connect();
       connectedClients.push(c);
@@ -37,15 +37,15 @@ async function runConcurrentAppendRace() {
     const clientEntryId = crypto.randomUUID();
     console.log('Sending 5 concurrent append requests with the same client_entry_id...');
 
-    const promises = clients.map(c => 
+    const promises = clients.map(c =>
       c.query(`SELECT * FROM public.append_report_entry(10, 5, 2, $1)`, [clientEntryId])
     );
 
     const results = await Promise.allSettled(promises);
-    
+
     let failed = 0;
     const returnedIds = new Set();
-    
+
     for (const res of results) {
       if (res.status === 'rejected') {
         console.error('Request failed:', res.reason);

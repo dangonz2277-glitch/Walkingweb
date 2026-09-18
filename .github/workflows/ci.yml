@@ -60,6 +60,9 @@ jobs:
     - name: Run Concurrency Tests
       run: npm run test:concurrency
 
+    - name: Run Append-only Concurrency Tests
+      run: npm run test:concurrency:append
+
     - name: Run HTTP API Tests
       run: npm run test:api
 
