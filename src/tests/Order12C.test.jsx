@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, act, cleanup, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import App from '../App.jsx';
+import * as client from '../data/catalogCustomProductClient.js';
 import { initStore } from '../data/store.js';
 
 import categories from '../../data/categories.json';
@@ -83,6 +84,7 @@ describe('Order 12C - Frontend fixes', () => {
   });
 
   it('Errores de persistencia y UI con alert, mantiene campos', async () => {
+    vi.spyOn(client, 'createCustomProduct').mockRejectedValue(new Error('API Down'));
     render(<App initialData={initialData} />);
     
     act(() => { fireEvent.click(screen.getByText('+ Producto')); });
@@ -95,13 +97,11 @@ describe('Order 12C - Frontend fixes', () => {
     fireEvent.change(modelInput, { target: { value: 'M1' } });
     fireEvent.change(capInput, { target: { value: '100' } });
 
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('QuotaExceededError');
-    });
+
 
     act(() => { fireEvent.click(screen.getByText('Guardar producto')); });
 
-    const alert = screen.getByRole('alert');
+    const alert = await screen.findByRole('alert');
     expect(alert).toBeTruthy();
     expect(alert.textContent).toContain('No se pudo guardar');
 

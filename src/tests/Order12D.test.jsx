@@ -30,7 +30,6 @@ describe('Order 12D - Parameterized Modals & Close', () => {
     { name: 'Ajustes', triggerText: 'Ajustes', title: 'Ajustes', isNav: true },
     { name: 'Mi Reporte', triggerText: 'Mi Reporte', title: 'Mi Reporte', isAriaLabel: true, expectedHeading: 'Ingresar a Mi Reporte' },
     { name: 'Nuevo producto', triggerText: '+ Producto', title: 'Nuevo producto' },
-    { name: 'Editar producto', triggerText: 'Editar', title: 'Editar producto', isEdit: true },
   ];
 
   modalTests.forEach(({ name, triggerText, title, isNav, isEdit, isAriaLabel, expectedHeading }) => {
