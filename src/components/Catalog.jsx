@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Modal from './Modal.jsx';
 import { getBaseProducts, getCategories, getIssues, getGeneralIssues, getProductIdentity } from '../data/store.js';
-import { listCustomProducts, createCustomProduct, CatalogApiError } from '../data/catalogCustomProductClient.js';
+import { listCustomProducts, createCustomProduct, updateCustomProduct, deleteCustomProduct, CatalogApiError } from '../data/catalogCustomProductClient.js';
 
 const fields = [
   ['speed', 'Velocidad'], ['motor', 'Motor'], ['capacity', 'Capacidad'],
@@ -31,6 +31,12 @@ export default function Catalog({ notify = () => {} }) {
   const addBtnRef = useRef(null);
   const productTriggerRef = useRef(null);
   const [editTrigger, setEditTrigger] = useState(null);
+  const [formMode, setFormMode] = useState('create');
+  const [deletingProduct, setDeletingProduct] = useState(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState(null);
+  const [isDeleteSaving, setIsDeleteSaving] = useState(false);
+  const deleteTrigger = useRef(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,11 +99,82 @@ export default function Catalog({ notify = () => {} }) {
   );
 
   function startAdd() {
+    setFormMode('create');
     setFormError('');
     setForm(emptyForm);
     setRequestId(crypto.randomUUID());
     setEditTrigger(addBtnRef);
     setEditing(true);
+  }
+
+  const startEdit = (product) => {
+    setExpandedIdentity(null);
+    setFormError('');
+    setForm(product);
+    setFormMode('edit');
+    setEditTrigger(productTriggerRef);
+    setEditing(true);
+  };
+
+  const closeEdit = () => {
+    setEditing(false);
+    setFormMode('create');
+    setFormError('');
+    setForm(emptyForm);
+  };
+
+  const startDelete = (product) => {
+    setExpandedIdentity(null);
+    setDeleteError(null);
+    setDeletePassword('');
+    deleteTrigger.current = productTriggerRef.current;
+    setDeletingProduct(product);
+  };
+
+  const closeDelete = () => {
+    setDeletingProduct(null);
+    setDeleteError(null);
+    setDeletePassword('');
+  };
+
+  async function confirmDelete(e) {
+    e.preventDefault();
+    if (isDeleteSaving) return;
+    setDeleteError(null);
+
+    const { id, revision } = deletingProduct;
+    const password = deletePassword;
+
+    try {
+      setIsDeleteSaving(true);
+      await deleteCustomProduct(id, revision, password);
+      setRemoteProducts(prev => prev.filter(p => p.id !== id));
+      closeDelete();
+      notify('Producto eliminado.');
+    } catch (err) {
+      setDeletePassword('');
+      if (err instanceof CatalogApiError) {
+        if (err.status === 403 || err.code === 'FORBIDDEN') {
+          setDeleteError('Contraseña incorrecta.');
+        } else if (err.status === 429 || err.code === 'TOO_MANY_REQUESTS') {
+          setDeleteError('Demasiados intentos. Espera unos minutos.');
+        } else if (err.status === 409 || err.code === 'CONFLICT') {
+          closeDelete();
+          setRetryTrigger(r => r + 1);
+          notify('El producto fue modificado por otro usuario. Se ha recargado.');
+        } else if (err.status === 404 || err.status === 410 || err.code === 'NOT_FOUND' || err.code === 'DELETED') {
+          closeDelete();
+          setRemoteProducts(prev => prev.filter(p => p.id !== id));
+          notify('El producto ya no existe.');
+        } else {
+          setDeleteError(err.message || 'Error al eliminar.');
+        }
+      } else {
+        setDeleteError('Error de red al eliminar.');
+      }
+    } finally {
+      setIsDeleteSaving(false);
+    }
   }
 
   async function save(e) {
@@ -131,20 +208,41 @@ export default function Catalog({ notify = () => {} }) {
 
     setIsSaving(true);
     try {
-      const created = await createCustomProduct(productToSave, requestId);
-      setRemoteProducts(prev => {
-        const others = prev.filter(p => p.id !== created.id);
-        return [{ ...created, isRemote: true }, ...others];
-      });
-      if (pendingCreates.current) {
-        pendingCreates.current.push({ ...created, isRemote: true });
+            if (formMode === 'create') {
+        const created = await createCustomProduct(productToSave, requestId);
+        setRemoteProducts(prev => {
+          const others = prev.filter(p => p.id !== created.id);
+          return [{ ...created, isRemote: true }, ...others];
+        });
+        if (pendingCreates.current) {
+          const index = pendingCreates.current.findIndex(p => p.id === created.id);
+          if (index >= 0) pendingCreates.current[index] = { ...created, isRemote: true };
+          else pendingCreates.current.push({ ...created, isRemote: true });
+        }
+        closeEdit();
+        setRequestId(null);
+        notify('Producto compartido guardado.');
+      } else {
+        const updated = await updateCustomProduct(form.id, productToSave, form.revision);
+        setRemoteProducts(prev => prev.map(p => p.id === form.id ? { ...updated, isRemote: true } : p));
+        closeEdit();
+        notify('Producto actualizado.');
       }
-      setEditing(false);
-      setRequestId(null);
-      notify('Producto compartido guardado.');
     } catch (err) {
       if (err instanceof CatalogApiError) {
-        setFormError(`${err.message}${err.field ? ` (${err.field})` : ''}`);
+        const isConflict = err.status === 409 || err.code === 'CONFLICT';
+        const isGone = err.status === 404 || err.status === 410 || err.code === 'NOT_FOUND' || err.code === 'DELETED';
+        if (isConflict) {
+          closeEdit();
+          setRetryTrigger(r => r + 1);
+          notify('El producto fue modificado por otro usuario.');
+        } else if (isGone) {
+          closeEdit();
+          setRemoteProducts(prev => prev.filter(p => p.id !== form.id));
+          notify('El producto ya no existe.');
+        } else {
+          setFormError(`${err.message}${err.field ? ` (${err.field})` : ''}`);
+        }
       } else {
         setFormError('No se pudo guardar el producto.');
       }
@@ -210,6 +308,14 @@ export default function Catalog({ notify = () => {} }) {
                     {link.label || link.url} {link.price ? `- ${link.price}` : ''}
                   </a>
                 ))}
+
+
+                {p.isRemote && (
+                  <div className="action-row" style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => startEdit(p)}>Editar</button>
+                    <button onClick={() => startDelete(p)}>Eliminar</button>
+                  </div>
+                )}
               </div>
               </Modal>
             )}
@@ -220,9 +326,9 @@ export default function Catalog({ notify = () => {} }) {
 
       {!filtered.length && <p>Sin resultados.</p>}
 
-      <Modal isOpen={editing} onClose={() => setEditing(false)} triggerRef={editTrigger} ariaLabelledBy="product-form-title">
+      <Modal isOpen={editing} onClose={closeEdit} triggerRef={editTrigger} ariaLabelledBy="product-form-title">
         <form className="auth-form product-form" onSubmit={save}>
-          <h2 id="product-form-title">Nuevo producto</h2>
+          <h2 id="product-form-title">{formMode === 'edit' ? 'Editar producto' : 'Nuevo producto'}</h2>
           {formError && <div role="alert" className="error-notice" style={{color: 'red', marginBottom: '1rem'}}>{formError}</div>}
 
           <label>Nombre<input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} disabled={isSaving} /></label>
@@ -263,6 +369,20 @@ export default function Catalog({ notify = () => {} }) {
           <p>Los precios se introducen manualmente. Consultarlos en una tienda requiere Internet.</p>
           <button type="submit" disabled={isSaving}>{isSaving ? 'Guardando...' : 'Guardar producto'}</button>
         </form>
+      </Modal>
+
+      <Modal isOpen={!!deletingProduct} onClose={closeDelete} triggerRef={deleteTrigger} ariaLabelledBy="delete-form-title">
+        {deletingProduct && (
+          <form className="auth-form product-form" onSubmit={confirmDelete}>
+            <h2 id="delete-form-title">Eliminar {deletingProduct.name}</h2>
+            {deleteError && <div role="alert" className="error-notice" style={{color: 'red', marginBottom: '1rem'}}>{deleteError}</div>}
+            <label>Contraseña del sitio principal<input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} disabled={isDeleteSaving} required autoFocus /></label>
+            <div className="form-actions" style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+              <button type="button" onClick={closeDelete} disabled={isDeleteSaving}>Cancelar</button>
+              <button type="submit" disabled={isDeleteSaving || !deletePassword}>{isDeleteSaving ? 'Eliminando...' : 'Confirmar'}</button>
+            </div>
+          </form>
+        )}
       </Modal>
     </>
   );
