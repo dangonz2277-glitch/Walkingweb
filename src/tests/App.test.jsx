@@ -19,6 +19,25 @@ describe('interfaz React', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+  it('abre tres accesos externos sin contenido incrustado y restaura el foco al cerrar', () => {
+    render(<App initialData={initialData} />);
+    const trigger = screen.getByRole('button', { name: 'Herramientas' });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Herramientas' });
+    const links = dialog.querySelectorAll('a');
+    expect(links.length).toBe(3);
+    links.forEach(link => {
+      expect(link.href.startsWith('https://')).toBe(true);
+      expect(link.target).toBe('_blank');
+      expect(link.rel).toBe('noopener noreferrer');
+    });
+    expect(dialog.querySelector('iframe, img, video, embed, object')).toBeNull();
+    fireEvent.click(dialog.querySelector('.close-btn'));
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    expect(screen.getByText(/42 productos/)).toBeTruthy();
+  });
+
   it('muestra 42 productos, busca un error y abre su detalle', () => {
     render(<App initialData={initialData} />);
     expect(screen.getByText(/42 productos/)).toBeTruthy();

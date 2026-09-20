@@ -126,6 +126,17 @@ function ActiveReport({ session }) {
   const [history, setHistory] = useState([]);
   const [savedNotice, setSavedNotice] = useState(false);
 
+  const hasPendingReport = calls + emails + liveChats > 0;
+  useEffect(() => {
+    if (!hasPendingReport) return;
+    const confirmLeave = (event) => {
+      event.preventDefault();
+      event.returnValue = true;
+    };
+    window.addEventListener('beforeunload', confirmLeave);
+    return () => window.removeEventListener('beforeunload', confirmLeave);
+  }, [hasPendingReport]);
+
   useEffect(() => {
     let active = true;
 

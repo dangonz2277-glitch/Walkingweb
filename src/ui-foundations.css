@@ -14,7 +14,7 @@ h1,h2,h3{line-height:1.2;letter-spacing:-.035em}
 .brand-mark{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:var(--ink);color:#e9f2e9;font-size:32px}
 .brand-caption{display:block;font-size:9px;letter-spacing:2.2px;color:var(--muted)}
 .workspace-label{color:var(--muted);font-size:13px}
-.site-nav{position:sticky;top:12px;z-index:2;display:flex;flex-wrap:nowrap;gap:6px;width:fit-content;max-width:calc(100% - 24px);margin:0 auto;padding:7px;border:1px solid white;border-radius:19px;background:#f9fbf8;box-shadow:0 8px 32px #29483a12}
+.site-nav{position:sticky;top:12px;z-index:2;display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:fit-content;max-width:calc(100% - 24px);margin:0 auto;padding:7px;border:1px solid white;border-radius:19px;background:#f9fbf8;box-shadow:0 8px 32px #29483a12}
 @supports(backdrop-filter:blur(16px)){.site-nav{background:#ffffffb8;backdrop-filter:blur(16px)}}
 .site-nav button{border-color:transparent;background:transparent;font-size:14px}
 .site-nav button.active{background:var(--ink);color:white;box-shadow:0 3px 8px #203b3720}
@@ -141,6 +141,11 @@ article.card:hover{border-color:#aac4b5;box-shadow:var(--shadow)}
 .product-modal .spec-grid>div{padding:16px}
 .product-modal .detail>a{display:block;margin-top:12px}
 .popup-description{color:var(--muted);margin-bottom:24px}
+.tool-shortcuts{display:grid;gap:12px}
+.tool-shortcut{display:grid;grid-template-columns:1fr auto;gap:6px 16px;padding:20px;border:1px solid var(--line);border-radius:16px;background:#fff;color:var(--ink);text-decoration:none;font-weight:650;overflow-wrap:anywhere}
+.tool-shortcut:hover{background:#edf6ef;border-color:#86ad99}
+.tool-shortcut:focus-visible{outline:3px solid #26745c;outline-offset:3px}
+.tool-link-hint{grid-column:1/-1;font-size:13px;font-weight:400;color:var(--muted)}
 .knowledge-search,.knowledge-modal input{width:100%}
 .knowledge-modal details{background:white;padding:16px;border-radius:12px;border-color:var(--line)}
 .knowledge-modal summary,.product-modal summary{line-height:1.6}

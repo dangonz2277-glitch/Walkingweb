@@ -42,6 +42,35 @@ describe('ReportPopup append-only integration', () => {
     expect(supabase.auth.getSession).not.toHaveBeenCalled();
   });
 
+  it('warns only for pending reports, including while the modal is closed', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id: '1' } } } });
+    getProfile.mockResolvedValue({ success: true, data: { status: 'active', display_name: 'Alice' } });
+    listRecentReportEntries.mockResolvedValue({ success: true, data: [] });
+    appendReportEntry.mockResolvedValue({ success: true });
+    const { rerender, unmount } = render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    await screen.findByText('Alice');
+    const warned = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(warned()).toBe(false);
+    fireEvent.click(screen.getByLabelText('Incrementar Calls'));
+    expect(warned()).toBe(true);
+    rerender(<ReportPopup isOpen={false} onClose={vi.fn()} />);
+    expect(warned()).toBe(true);
+    rerender(<ReportPopup isOpen={true} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText('Cancelar / Limpiar'));
+    expect(warned()).toBe(false);
+    fireEvent.click(screen.getByLabelText('Incrementar Emails'));
+    fireEvent.click(screen.getByText('Guardar Reporte'));
+    await waitFor(() => expect(warned()).toBe(false));
+    fireEvent.click(screen.getByLabelText('Incrementar Live Chats'));
+    expect(warned()).toBe(true);
+    unmount();
+    expect(warned()).toBe(false);
+  });
+
   it('renders auth form when opened and no session', async () => {
     render(<ReportPopup isOpen={true} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Ingresar a Mi Reporte')).toBeDefined());
