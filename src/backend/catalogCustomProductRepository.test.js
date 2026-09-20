@@ -116,7 +116,7 @@ describe('Backend: catalogCustomProductRepository', () => {
         maybeSingleResult: () => ({ data: { id: 'uuid', cat: 'C', links: [], issues: [] }, error: null })
       });
       const res = await createCustomProduct(sb, validProduct, 'req-uuid');
-      expect(res.status).toBe('OK');
+      expect(res.status).toBe('CREATED');
     });
 
     it('reintento idéntico no duplica, manejando orden de propiedades JSON', async () => {
@@ -131,7 +131,7 @@ describe('Backend: catalogCustomProductRepository', () => {
       });
       const prod = { ...validProduct, links: [{ label: 'L', url: 'http://a', price: '' }] };
       const res = await createCustomProduct(sb, prod, 'req-uuid');
-      expect(res.status).toBe('OK');
+      expect(res.status).toBe('IDEMPOTENT_REPLAY');
     });
 
     it('reintento con issues en otro orden de claves', async () => {
@@ -145,7 +145,7 @@ describe('Backend: catalogCustomProductRepository', () => {
       });
       const prod = { ...validProduct, issues: [{ code: 'C', name: 'N', fix: 'F', parts: 'P' }] };
       const res = await createCustomProduct(sb, prod, 'req-uuid');
-      expect(res.status).toBe('OK');
+      expect(res.status).toBe('IDEMPOTENT_REPLAY');
     });
 
     it('cambio real en un link produce CONFLICT', async () => {

@@ -1,9 +1,9 @@
 import { resolveClientIp } from '../../../src/backend/ipUtils.js';
 import { getSecretKey } from '../../../src/utils/envUtils';
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import { signSession } from '../../../src/lib/session';
 import { createClient } from '@supabase/supabase-js';
+import { compareSitePassword } from '../../../src/backend/routeSecurity.js';
 
 async function rateLimit(ip) {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -66,17 +66,22 @@ export async function POST(request) {
   const formData = await request.formData();
   const password = formData.get('password') || '';
 
-  const sitePassword = process.env.SITE_PASSWORD;
   const sessionSecret = process.env.SITE_SESSION_SECRET;
 
-  if (!sitePassword || !sessionSecret) {
+  if (!sessionSecret) {
     return new NextResponse('Internal Server Error: Missing Secrets', { status: 500 });
   }
 
-  const inputHash = crypto.createHash('sha256').update(password).digest();
-  const expectedHash = crypto.createHash('sha256').update(sitePassword).digest();
+  let isMatch = false;
+  try {
+    isMatch = compareSitePassword(password);
+  } catch (error) {
+    if (error.message === "CONFIG_ERROR") {
+      return new NextResponse('Internal Server Error: Missing Secrets', { status: 500 });
+    }
+  }
 
-  if (crypto.timingSafeEqual(inputHash, expectedHash)) {
+  if (isMatch) {
     const sessionValue = await signSession({ auth: true }, sessionSecret);
 
     const response = new NextResponse(null, {

@@ -93,7 +93,7 @@ export async function createCustomProduct(supabase, product, requestId) {
       if (existing.deleted_at) return { status: 'DELETED' };
       
       if (isIdenticalCustomProduct(existing, row)) {
-        return { status: 'OK', data: fromDatabase(existing) };
+        return { status: 'IDEMPOTENT_REPLAY', data: fromDatabase(existing) };
       } else {
         return { status: 'CONFLICT', error: 'El request_id ya existe con contenido distinto' };
       }
@@ -101,7 +101,7 @@ export async function createCustomProduct(supabase, product, requestId) {
     handleDbError(error);
   }
 
-  return { status: 'OK', data: fromDatabase(data) };
+  return { status: 'CREATED', data: fromDatabase(data) };
 }
 
 export async function updateCustomProduct(supabase, id, expectedRevision, product) {
