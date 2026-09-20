@@ -267,8 +267,8 @@ export default function Catalog({ notify = () => {} }) {
       </div>
 
       {remoteError && (
-        <div className="error-notice" style={{ backgroundColor: '#fff3f3', padding: '1rem', marginBottom: '1rem', borderRadius: '4px', border: '1px solid #ffcaca' }}>
-          <p style={{ color: '#d32f2f', margin: '0 0 0.5rem 0' }}>{remoteError}</p>
+        <div className="error-notice catalog-error">
+          <p>{remoteError}</p>
           <button onClick={() => setRetryTrigger(prev => prev + 1)}>Reintentar cargar compartidos</button>
         </div>
       )}
@@ -282,7 +282,7 @@ export default function Catalog({ notify = () => {} }) {
             <button className="card-title" onClick={event => { productTriggerRef.current = event.currentTarget; setExpandedIdentity(identity); }} aria-haspopup="dialog" aria-expanded={expandedIdentity === identity}>
               <strong>{p.name}</strong> <span>{p.model}</span>
             </button>
-            <small>{p.cat}{p.isRemote ? <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', borderRadius: '4px', backgroundColor: '#f3e8ff', color: '#6b21a8', marginLeft: '0.5rem' }}>Compartido</span> : ''}</small>
+            <small>{p.cat}{p.isRemote ? <span className="shared-badge">Compartido</span> : ''}</small>
             <p>{p.speed} · {p.capacity}</p>
 
             {expandedIdentity === identity && (
@@ -329,7 +329,7 @@ export default function Catalog({ notify = () => {} }) {
       <Modal isOpen={editing} onClose={closeEdit} triggerRef={editTrigger} ariaLabelledBy="product-form-title">
         <form className="auth-form product-form" onSubmit={save}>
           <h2 id="product-form-title">{formMode === 'edit' ? 'Editar producto' : 'Nuevo producto'}</h2>
-          {formError && <div role="alert" className="error-notice" style={{color: 'red', marginBottom: '1rem'}}>{formError}</div>}
+          {formError && <div role="alert" className="error-notice form-error">{formError}</div>}
 
           <label>Nombre<input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} disabled={isSaving} /></label>
           <label>Modelo<input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} disabled={isSaving} /></label>
@@ -345,7 +345,7 @@ export default function Catalog({ notify = () => {} }) {
 
           <h3>Problemas frecuentes (Opcional)</h3>
           {form.issues.map((iss, index) => (
-            <div className="link-row" key={index} style={{ marginBottom: '1rem', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}>
+            <div className="link-row product-link-row" key={index}>
               <input aria-label={`Código Error ${index + 1}`} placeholder="Código (ej. E01)" value={iss.code} onChange={e => setForm({ ...form, issues: form.issues.map((x, i) => i === index ? { ...x, code: e.target.value } : x) })} disabled={isSaving} />
               <input aria-label={`Nombre Error ${index + 1}`} placeholder="Nombre/Descripción" value={iss.name} onChange={e => setForm({ ...form, issues: form.issues.map((x, i) => i === index ? { ...x, name: e.target.value } : x) })} disabled={isSaving} />
               <textarea aria-label={`Solución Error ${index + 1}`} placeholder="Solución" value={iss.fix || ''} onChange={e => setForm({ ...form, issues: form.issues.map((x, i) => i === index ? { ...x, fix: e.target.value } : x) })} disabled={isSaving} />
@@ -375,7 +375,7 @@ export default function Catalog({ notify = () => {} }) {
         {deletingProduct && (
           <form className="auth-form product-form" onSubmit={confirmDelete}>
             <h2 id="delete-form-title">Eliminar {deletingProduct.name}</h2>
-            {deleteError && <div role="alert" className="error-notice" style={{color: 'red', marginBottom: '1rem'}}>{deleteError}</div>}
+            {deleteError && <div role="alert" className="error-notice form-error">{deleteError}</div>}
             <label>Contraseña del sitio principal<input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} disabled={isDeleteSaving} required autoFocus /></label>
             <div className="form-actions" style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
               <button type="button" onClick={closeDelete} disabled={isDeleteSaving}>Cancelar</button>

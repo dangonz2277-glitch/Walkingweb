@@ -7,6 +7,7 @@ import ReportPopup from './components/ReportPopup.jsx';
 import SettingsPopup from './components/SettingsPopup.jsx';
 import GeneralIssuesPopup from './components/GeneralIssuesPopup.jsx';
 import ToolsPopup from './components/ToolsPopup.jsx';
+import ThemeToggle from './components/ThemeToggle.jsx';
 import { initStore } from './data/store.js';
 
 export default function App({ initialData }) {
@@ -33,7 +34,7 @@ export default function App({ initialData }) {
       <a className="skip-link" href="#catalog-content">Saltar al catálogo</a>
       <header className="site-header">
         <div className="brand"><span className="brand-mark" aria-hidden="true">w.</span><span>WalkingPad<span className="brand-caption">SUPPORT WORKSPACE</span></span></div>
-        <span className="workspace-label">Tu espacio de soporte técnico</span>
+        <div className="header-actions"><span className="workspace-label">Tu espacio de soporte técnico</span><ThemeToggle /></div>
       </header>
       <nav className="site-nav" aria-label="Navegación principal">
         <button className={!isReportOpen && !isGuideOpen && !isSettingsOpen && !isIssuesOpen && !isToolsOpen ? 'active' : ''} onClick={() => document.getElementById('catalog-content')?.focus()}>Catálogo</button>
